@@ -1,0 +1,211 @@
+.closet-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.filter-selects {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    align-items: center;
+    gap: 10px 14px;
+  }
+  .filter-selects {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .chip-scroll {
+    grid-column: 1 / -1;
+  }
+}
+
+.chip-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.chip-scroll closet-chip-group {
+  display: block;
+  min-width: max-content;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--qp-mute);
+}
+
+.garment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .garment-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .garment-grid {
+    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  }
+}
+
+.garment-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--qp-line);
+  background: var(--qp-bg-soft);
+  transition: border-color 120ms ease;
+}
+.garment-card:hover {
+  border-color: var(--qp-line-strong);
+}
+
+.garment-open {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  border: 0;
+  background: var(--qp-bg-active);
+  cursor: pointer;
+}
+.garment-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.garment-noimage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.garment-info {
+  padding: 9px 10px 11px;
+}
+
+.garment-name {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--qp-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.garment-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0 0;
+  font-size: 11px;
+  color: var(--qp-mute);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.garment-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+}
+
+.garment-status {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(26, 24, 21, 0.72);
+  color: #fff;
+  font-size: 10px;
+}
+
+.garment-tagging {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--qp-clay);
+  color: #fff;
+  font-size: 10px;
+}
+.garment-status + .garment-tagging {
+  top: 30px;
+}
+
+.garment-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(26, 24, 21, 0.6);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.garment-card:hover .garment-delete,
+.garment-delete:focus-visible {
+  opacity: 1;
+}
+
+// En táctil no hay hover: el botón se ve siempre.
+@media (hover: none) {
+  .garment-delete {
+    opacity: 1;
+  }
+}
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  background: rgba(26, 24, 21, 0.35);
+  pointer-events: none;
+}
+
+.drop-hint {
+  padding: 14px 22px;
+  border-radius: 12px;
+  border: 2px dashed var(--qp-bg);
+  background: rgba(26, 24, 21, 0.72);
+  color: #fff;
+  font-size: 14px;
+}

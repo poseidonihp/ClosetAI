@@ -1,0 +1,51 @@
+<div class="flex min-h-dvh items-center justify-center px-4 py-8">
+  <div class="panel w-full max-w-md rounded-xl px-7 pb-7 pt-8" data-test="div-login-page">
+    <closet-brand-mark />
+    <p class="mb-7 mt-4 text-[13px]" style="color: var(--qp-mute)">
+      Entra para ver tu clóset y tus looks.
+    </p>
+
+    <form [formGroup]="form" class="flex flex-col gap-4" (ngSubmit)="submit()">
+      <closet-field label="Email" controlId="login-email">
+        <input
+          id="login-email"
+          type="email"
+          class="field-input"
+          data-test="input-email-page"
+          autocomplete="username"
+          aria-label="Email"
+          formControlName="email"
+        />
+      </closet-field>
+
+      <closet-field label="Password" controlId="login-password">
+        <input
+          id="login-password"
+          type="password"
+          class="field-input"
+          data-test="input-password-page"
+          autocomplete="current-password"
+          aria-label="Password"
+          formControlName="password"
+        />
+      </closet-field>
+
+      <closet-error-banner [message]="errorMessage()" />
+
+      <closet-submit-button
+        label="Entrar"
+        loadingLabel="Entrando…"
+        dataTest="action-login-page"
+        extraClass="mt-2 justify-center"
+        [loading]="submitting()"
+        [disabled]="form.invalid"
+        [icon]="iconLogin"
+      />
+    </form>
+
+    <p class="mt-6 text-center text-[12px]" style="color: var(--qp-mute)">
+      ¿Todavía no tienes cuenta?
+      <a routerLink="/registro" class="underline" data-test="action-register-page">Crea una</a>
+    </p>
+  </div>
+</div>

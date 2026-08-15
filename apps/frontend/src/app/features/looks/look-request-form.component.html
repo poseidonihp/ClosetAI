@@ -1,0 +1,157 @@
+<div class="request-form" data-test="div-lookform-panel">
+  <div class="field">
+    <span class="uplabel">Estilo</span>
+    <closet-chip-group
+      label="Estilo del look"
+      dataTest="action-style-panel"
+      [multi]="false"
+      [options]="styleChips"
+      [selected]="styleSelection()"
+      (changed)="onStyleChips($event)"
+    />
+  </div>
+
+  <label for="look-occasion" class="sr-only">Ocasión (opcional)</label>
+  <closet-field label="Ocasión (opcional)" controlId="look-occasion">
+    <select
+      id="look-occasion"
+      class="field-select"
+      data-test="select-occasion-panel"
+      [value]="occasion()"
+      (change)="onOccasion($event)"
+    >
+      <option [value]="anyValue">Sin ocasión concreta</option>
+      @for (option of occasionOptions; track option) {
+        <option [value]="option">{{ labels.lookOccasion[option] }}</option>
+      }
+    </select>
+  </closet-field>
+
+  <label for="look-climate" class="sr-only">Clima</label>
+  <closet-field label="Clima" controlId="look-climate">
+    <select
+      id="look-climate"
+      class="field-select"
+      data-test="select-climate-panel"
+      [value]="climate()"
+      (change)="onClimate($event)"
+    >
+      <option [value]="anyValue">
+        @if (profileClimate()) {
+          Según mi perfil
+        } @else {
+          Sin preferencia de clima
+        }
+      </option>
+      @for (option of climateOptions; track option) {
+        <option [value]="option">{{ labels.climate[option] }}</option>
+      }
+    </select>
+  </closet-field>
+  @if (climate() === anyValue && profileClimate(); as profile) {
+    <span class="form-hint">En tu perfil: {{ labels.climate[profile] }}.</span>
+  }
+
+  <closet-field label="Temperatura exacta (°C, opcional)" controlId="look-temperature">
+    <input
+      id="look-temperature"
+      type="number"
+      inputmode="numeric"
+      class="field-input"
+      data-test="input-temperature-panel"
+      placeholder="Ej. 22"
+      aria-label="Temperatura exacta (°C, opcional)"
+      [value]="temperatureC()"
+      (input)="onTemperature($event)"
+    />
+  </closet-field>
+
+  <label for="look-mustinclude" class="sr-only">Usar esta prenda (opcional)</label>
+  <closet-field label="Usar esta prenda (opcional)" controlId="look-mustinclude">
+    <select
+      id="look-mustinclude"
+      class="field-select"
+      data-test="select-mustinclude-panel"
+      [value]="mustIncludeGarmentId()"
+      (change)="onMustInclude($event)"
+    >
+      <option [value]="anyValue">Cualquier prenda del clóset</option>
+      @for (slot of slotOptions; track slot) {
+        @if (garmentsFor(slot).length > 0) {
+          <optgroup [label]="labels.garmentSlot[slot]">
+            @for (garment of garmentsFor(slot); track garment.id) {
+              <option [value]="garment.id">{{ garment.name }}</option>
+            }
+          </optgroup>
+        }
+      }
+    </select>
+  </closet-field>
+
+  <label for="look-limit" class="sr-only">Cuántos looks</label>
+  <closet-field label="Cuántos looks" controlId="look-limit">
+    <select
+      id="look-limit"
+      class="field-select"
+      data-test="select-limit-panel"
+      (change)="onLimit($event)"
+    >
+      <!-- `selected` y no `[value]` en el select: las opciones las pinta un @for
+           y todavía no existen cuando Angular escribe el valor. -->
+      @for (option of limitOptions; track option) {
+        <option [value]="option" [selected]="option === limit()">{{ option }}</option>
+      }
+    </select>
+  </closet-field>
+
+  @if (hasSuggested()) {
+    <label class="suggested-row">
+      <input
+        type="checkbox"
+        class="check"
+        data-test="input-suggested-panel"
+        [checked]="includeSuggested()"
+        (change)="onIncludeSuggested($event)"
+      />
+      <span>
+        Incluir prendas sugeridas por IA sin confirmar
+        <span class="form-hint">Por defecto sólo se usan las que ya revisaste.</span>
+      </span>
+    </label>
+  }
+
+  @if (stylistAvailable()) {
+    <label class="suggested-row">
+      <input
+        type="checkbox"
+        class="check"
+        data-test="input-usestylist-panel"
+        [checked]="useStylist()"
+        (change)="onUseStylist($event)"
+      />
+      <span>
+        Que el estilista con IA escriba la ficha
+        <span class="form-hint">
+          Elige entre las combinaciones del motor y las explica. Cuesta una llamada y el look queda
+          guardado. Sin marcar, la ficha la escribe el motor y no cuesta nada.
+        </span>
+      </span>
+    </label>
+  }
+
+  <closet-submit-button
+    type="button"
+    loadingLabel="Armando looks…"
+    dataTest="action-generate-panel"
+    extraClass="mt-1 justify-center"
+    [label]="useStylist() && stylistAvailable() ? 'Generar con el estilista' : 'Generar looks'"
+    [loading]="busy()"
+    [icon]="iconSparkles"
+    (clicked)="submit()"
+  />
+
+  <p class="form-hint">
+    Sólo se combinan prendas que ya tienes. Si algo no es posible, se te dice por qué en vez de
+    inventarlo.
+  </p>
+</div>

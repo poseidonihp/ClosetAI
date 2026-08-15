@@ -1,0 +1,28 @@
+{
+  "name": "closetai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clóset inteligente con IA — Angular 21 + NestJS + PostgreSQL",
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,md,html,scss,css,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,json,md,html,scss,css,yaml,yml}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "angular-eslint": "^21.0.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.65.0"
+  }
+}

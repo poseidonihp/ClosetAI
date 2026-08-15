@@ -1,0 +1,22 @@
+<div class="toast-stack" role="region" aria-label="Notificaciones" aria-live="polite">
+  @for (item of notifications.items(); track item.id) {
+    <div class="toast" [attr.data-kind]="item.kind" role="status">
+      <lucide-icon [name]="icon(item.kind)" class="toast-icon h-4 w-4" aria-hidden="true" />
+      <div class="toast-body">
+        @if (item.title) {
+          <div class="toast-title">{{ item.title }}</div>
+        }
+        <div class="toast-msg">{{ item.message }}</div>
+      </div>
+      <button
+        type="button"
+        class="toast-close"
+        data-test="action-dismiss-panel"
+        (click)="notifications.dismiss(item.id)"
+        aria-label="Descartar notificación"
+      >
+        <lucide-icon [name]="iconClose" class="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+    </div>
+  }
+</div>

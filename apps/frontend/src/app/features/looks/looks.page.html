@@ -1,0 +1,184 @@
+<header class="page-header">
+  <div class="looks-head">
+    <div>
+      <div class="uplabel">Combinaciones</div>
+      <h1 class="serif page-title">Looks</h1>
+    </div>
+    @if (!layout.isDesktop()) {
+      <button
+        type="button"
+        class="pill pill-solid"
+        data-test="action-openpanel-page"
+        (click)="openPanel()"
+      >
+        Generar looks
+      </button>
+    }
+  </div>
+</header>
+
+<div class="page-body looks-body" data-test="div-looks-page">
+  @if (layout.isDesktop()) {
+    <aside class="looks-panel panel-card" aria-label="Generar looks">
+      <p class="section-title">Generar looks</p>
+      <p class="section-hint">Con las prendas que ya tienes en el clóset.</p>
+      <closet-look-request-form
+        [busy]="loading()"
+        [stylistAvailable]="stylistAvailable()"
+        (submitted)="generate($event)"
+      />
+      @if (usage.summary(); as summary) {
+        <p class="looks-usage" data-test="div-usage-panel">
+          Gasto de IA: {{ summary.committedUsd.toFixed(4) }} de
+          {{ summary.monthlyBudgetUsd.toFixed(2) }} USD este mes.
+          @if (costLabel(); as cost) {
+            La última generación costó {{ cost }}.
+          }
+        </p>
+      }
+    </aside>
+  }
+
+  <section class="looks-results">
+    <closet-error-banner [message]="error()" />
+
+    @if (closetIsEmpty()) {
+      <closet-empty-state
+        title="Tu clóset está vacío"
+        description="El motor sólo combina prendas que ya tienes. Añade unas cuantas y vuelve: con una parte de arriba, una de abajo y un calzado ya hay looks."
+        [icon]="iconShirt"
+      >
+        <a class="pill pill-solid" data-test="action-gocloset-page" routerLink="/closet">
+          Ir al clóset
+        </a>
+      </closet-empty-state>
+    } @else if (loading()) {
+      @for (card of skeletonCards; track card) {
+        <div class="skeleton-card">
+          <closet-skeleton height="26px" width="55%" />
+          <closet-skeleton class="mt-3 block" [rows]="6" height="13px" />
+        </div>
+      }
+    } @else {
+      @if (diagnostics(); as report) {
+        @if (report.note || hints().length > 0) {
+          <div class="diagnostics" role="status" data-test="div-diagnostics-page">
+            <p class="uplabel">Lo que encontró el motor</p>
+            @if (report.note; as note) {
+              <p class="diagnostics-note">{{ note }}</p>
+            }
+            @if (hints().length > 0) {
+              <ul class="diagnostics-list">
+                @for (hint of hints(); track hint) {
+                  <li>{{ hint }}</li>
+                }
+              </ul>
+            }
+            @if (report.excludedCount > 0) {
+              <p class="diagnostics-meta">
+                {{ report.eligibleCount }} prendas entraron en la combinación,
+                {{ report.excludedCount }} se quedaron fuera.
+              </p>
+            }
+            @if (!hasResults()) {
+              <a class="pill mt-1" data-test="action-fixcloset-page" routerLink="/closet">
+                Revisar el clóset
+              </a>
+            }
+          </div>
+        }
+      }
+
+      @if (discarded().length > 0) {
+        <div class="diagnostics" data-test="div-discarded-page">
+          <p class="uplabel">Lo que se descartó del estilista</p>
+          <ul class="diagnostics-list">
+            @for (reason of discarded(); track reason) {
+              <li>{{ reason }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (stylistMode()) {
+        @if (outfits().length > 0) {
+          <div class="look-list">
+            @for (outfit of outfits(); track outfit.id; let index = $index) {
+              <closet-look-card
+                [look]="outfit"
+                [outfit]="outfit"
+                [index]="index"
+                [heightCm]="heightCm()"
+                [busy]="isPending(outfit)"
+                (favoriteToggled)="toggleFavorite(outfit, $event)"
+                (wornMarked)="markWorn(outfit)"
+                (rated)="rate(outfit, $event)"
+                (rejected)="reject(outfit, $event)"
+                (deleted)="removeOutfit(outfit)"
+              />
+            }
+          </div>
+        }
+      } @else if (looks().length > 0) {
+        <div class="look-list">
+          @for (look of looks(); track look.id; let index = $index) {
+            <closet-look-card [look]="look" [index]="index" [heightCm]="heightCm()" />
+          }
+        </div>
+      }
+
+      @if (!generated()) {
+        <closet-empty-state
+          title="Aún no has pedido ningún look"
+          description="Elige un estilo y, si quieres, la ocasión, el clima o una prenda concreta. Sólo se combinan prendas que ya tienes, y cada elección viene explicada."
+          [icon]="iconSparkles"
+        >
+          @if (!layout.isDesktop()) {
+            <button
+              type="button"
+              class="pill pill-solid"
+              data-test="action-openpanelempty-page"
+              (click)="openPanel()"
+            >
+              Generar looks
+            </button>
+          }
+        </closet-empty-state>
+      }
+    }
+  </section>
+</div>
+
+@if (panelOpen()) {
+  <div class="dialog-overlay">
+    <button
+      type="button"
+      class="dialog-backdrop"
+      data-test="action-dismiss-modal"
+      aria-label="Cerrar"
+      (click)="closePanel()"
+    ></button>
+
+    <div class="dialog-slot">
+      <closet-dialog
+        title="Generar looks"
+        subtitle="Con lo que ya tienes"
+        widthClass="w-[min(520px,96vw)]"
+        (closed)="closePanel()"
+      >
+        <div dialog-body class="dialog-body" data-test="div-lookform-modal">
+          <closet-look-request-form
+            [busy]="loading()"
+            [stylistAvailable]="stylistAvailable()"
+            (submitted)="generate($event)"
+          />
+        </div>
+        <div dialog-footer class="contents">
+          <button type="button" class="pill" data-test="action-cancel-modal" (click)="closePanel()">
+            Cerrar
+          </button>
+        </div>
+      </closet-dialog>
+    </div>
+  </div>
+}

@@ -1,0 +1,399 @@
+<div class="dialog-overlay">
+  <button
+    type="button"
+    class="dialog-backdrop"
+    data-test="action-dismiss-modal"
+    aria-label="Cerrar"
+    (click)="requestClose()"
+  ></button>
+
+  <div class="dialog-slot">
+    <closet-dialog
+      [title]="isEdit() ? 'Editar prenda' : 'Nueva prenda'"
+      [subtitle]="isEdit() ? 'Tu clóset' : 'Añadir al clóset'"
+      widthClass="w-[min(720px,96vw)]"
+      (closed)="closed.emit()"
+    >
+      <div dialog-body class="dialog-body" data-test="div-garment-modal">
+        <!-- Fotos -->
+        <section class="mb-5">
+          <div class="uplabel mb-2">Fotos ({{ totalPhotos() }}/{{ maxPhotos }})</div>
+          <p class="hint mb-3">
+            Una foto plana sobre fondo neutro se etiqueta y se ve mucho mejor que una del armario
+            lleno.
+          </p>
+
+          <div class="photo-grid">
+            @for (photo of photos(); track photo.id) {
+              <figure class="photo" [class.photo-primary]="photo.isPrimary">
+                <img [src]="photo.thumbUrl" alt="Foto de la prenda" loading="lazy" />
+                <figcaption class="photo-actions">
+                  @if (!photo.isPrimary) {
+                    <button
+                      type="button"
+                      class="photo-btn"
+                      data-test="action-setprimary-modal"
+                      title="Usar como portada"
+                      (click)="setPrimary(photo)"
+                    >
+                      ★
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="photo-btn"
+                    data-test="action-removephoto-modal"
+                    title="Borrar foto"
+                    (click)="removePhoto(photo)"
+                  >
+                    ×
+                  </button>
+                </figcaption>
+                @if (photo.isPrimary) {
+                  <span class="photo-badge">Portada</span>
+                }
+              </figure>
+            }
+
+            @for (photo of pending(); track photo.id) {
+              <figure class="photo" [class.photo-error]="photo.status === 'error'">
+                <img [src]="photo.previewUrl" alt="Foto pendiente de subir" />
+                <figcaption class="photo-actions">
+                  <button
+                    type="button"
+                    class="photo-btn"
+                    data-test="action-removepending-modal"
+                    title="Quitar"
+                    (click)="removePending(photo.id)"
+                  >
+                    ×
+                  </button>
+                </figcaption>
+                <span class="photo-badge">
+                  @switch (photo.status) {
+                    @case ('uploading') {
+                      Subiendo…
+                    }
+                    @case ('error') {
+                      Falló
+                    }
+                    @default {
+                      Sin subir
+                    }
+                  }
+                </span>
+              </figure>
+            }
+          </div>
+
+          @if (canAddPhotos()) {
+            <div class="mt-3 flex flex-wrap gap-2">
+              @if (layout.isMobile()) {
+                <label class="pill" data-test="action-camera-modal">
+                  Tomar foto
+                  <input
+                    type="file"
+                    class="sr-file"
+                    [accept]="acceptedMimeTypes"
+                    capture="environment"
+                    (change)="onFilesPicked($event)"
+                  />
+                </label>
+              }
+              <label class="pill" data-test="action-pickphotos-modal">
+                {{ layout.isMobile() ? 'Elegir de la galería' : 'Añadir fotos' }}
+                <input
+                  type="file"
+                  class="sr-file"
+                  multiple
+                  [accept]="acceptedMimeTypes"
+                  (change)="onFilesPicked($event)"
+                />
+              </label>
+              @if (!layout.isMobile()) {
+                <span class="hint self-center">
+                  También puedes arrastrarlas o pegarlas sobre el clóset.
+                </span>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Etiquetado por IA -->
+        <closet-tagging-panel
+          class="mb-5 block"
+          [garment]="current()"
+          [photoCount]="totalPhotos()"
+          [running]="tagging()"
+          [runningLabel]="taggingLabel()"
+          [errorMessage]="taggingError()"
+          (requested)="runTagging($event)"
+        />
+
+        <!-- Datos -->
+        <form [formGroup]="form" class="grid-fields">
+          <closet-field label="Nombre" controlId="garment-name" class="col-span-full">
+            <input
+              id="garment-name"
+              type="text"
+              class="field-input"
+              data-test="input-name-modal"
+              placeholder="Ej. Camiseta blanca básica"
+              aria-label="Nombre"
+              formControlName="name"
+            />
+          </closet-field>
+
+          <label for="garment-type" class="sr-only">Tipo de prenda</label>
+          <closet-field label="Tipo de prenda" controlId="garment-type">
+            <select
+              id="garment-type"
+              class="field-select"
+              data-test="select-type-modal"
+              formControlName="garmentTypeId"
+              (change)="onTypeChange($event)"
+            >
+              <option value="" disabled>Elige un tipo</option>
+              @for (slot of slotOptions; track slot) {
+                @if (typesFor(slot).length > 0) {
+                  <optgroup [label]="labels.garmentSlot[slot]">
+                    @for (type of typesFor(slot); track type.id) {
+                      <option [value]="type.id">{{ type.name }}</option>
+                    }
+                  </optgroup>
+                }
+              }
+            </select>
+          </closet-field>
+
+          <label for="garment-slot" class="sr-only">Dónde se lleva</label>
+          <closet-field label="Dónde se lleva" controlId="garment-slot">
+            <select
+              id="garment-slot"
+              class="field-select"
+              data-test="select-slot-modal"
+              formControlName="slot"
+            >
+              @for (slot of slotOptions; track slot) {
+                <option [value]="slot">{{ labels.garmentSlot[slot] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <closet-field label="Color principal" controlId="garment-colorhex">
+            <div class="color-row">
+              <input
+                id="garment-colorhex"
+                type="color"
+                class="color-input"
+                data-test="input-colorhex-modal"
+                aria-label="Color principal"
+                formControlName="primaryColorHex"
+                (change)="onColorChange()"
+              />
+              <input
+                type="text"
+                class="field-input flex-1"
+                data-test="input-colorname-modal"
+                aria-label="Nombre del color principal"
+                placeholder="Nombre del color"
+                formControlName="primaryColorName"
+              />
+            </div>
+          </closet-field>
+
+          <closet-field label="Color secundario (opcional)" controlId="garment-colorhex2">
+            <div class="color-row">
+              <input
+                id="garment-colorhex2"
+                type="color"
+                class="color-input"
+                data-test="input-secondarycolor-modal"
+                aria-label="Color secundario"
+                formControlName="secondaryColorHex"
+              />
+              @if (form.controls.secondaryColorHex.value) {
+                <button
+                  type="button"
+                  class="pill"
+                  data-test="action-clearsecondary-modal"
+                  (click)="clearSecondaryColor()"
+                >
+                  Quitar
+                </button>
+              } @else {
+                <span class="hint">Sin color secundario</span>
+              }
+            </div>
+          </closet-field>
+
+          <label for="garment-pattern" class="sr-only">Estampado</label>
+          <closet-field label="Estampado" controlId="garment-pattern">
+            <select
+              id="garment-pattern"
+              class="field-select"
+              data-test="select-pattern-modal"
+              formControlName="pattern"
+            >
+              @for (pattern of patternOptions; track pattern) {
+                <option [value]="pattern">{{ labels.garmentPattern[pattern] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <label for="garment-patternscale" class="sr-only">Escala del estampado</label>
+          <closet-field label="Escala del estampado" controlId="garment-patternscale">
+            <select
+              id="garment-patternscale"
+              class="field-select"
+              data-test="select-patternscale-modal"
+              formControlName="patternScale"
+            >
+              @for (scale of patternScaleOptions; track scale) {
+                <option [value]="scale">{{ labels.patternScale[scale] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <label for="garment-material" class="sr-only">Material</label>
+          <closet-field label="Material" controlId="garment-material">
+            <select
+              id="garment-material"
+              class="field-select"
+              data-test="select-material-modal"
+              formControlName="material"
+            >
+              @for (material of materialOptions; track material) {
+                <option [value]="material">{{ labels.garmentMaterial[material] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <label for="garment-fit" class="sr-only">Corte</label>
+          <closet-field label="Corte" controlId="garment-fit">
+            <select
+              id="garment-fit"
+              class="field-select"
+              data-test="select-fit-modal"
+              formControlName="fit"
+            >
+              @for (fit of fitOptions; track fit) {
+                <option [value]="fit">{{ labels.fitPreference[fit] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <closet-field
+            [label]="'Formalidad — ' + formalityLabel(form.controls.formality.value)"
+            controlId="garment-formality"
+          >
+            <input
+              id="garment-formality"
+              type="range"
+              class="range-input"
+              data-test="input-formality-modal"
+              aria-label="Formalidad"
+              [min]="minFormality"
+              [max]="maxFormality"
+              step="1"
+              formControlName="formality"
+            />
+          </closet-field>
+
+          <label for="garment-status" class="sr-only">Estado</label>
+          <closet-field label="Estado" controlId="garment-status">
+            <select
+              id="garment-status"
+              class="field-select"
+              data-test="select-status-modal"
+              formControlName="status"
+            >
+              @for (status of statusOptions; track status) {
+                <option [value]="status">{{ labels.garmentStatus[status] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <closet-field label="Temperatura mínima (°C)" controlId="garment-tempmin">
+            <input
+              id="garment-tempmin"
+              type="number"
+              inputmode="numeric"
+              class="field-input"
+              data-test="input-tempmin-modal"
+              aria-label="Temperatura mínima (°C)"
+              formControlName="weatherMinC"
+            />
+          </closet-field>
+
+          <closet-field label="Temperatura máxima (°C)" controlId="garment-tempmax">
+            <input
+              id="garment-tempmax"
+              type="number"
+              inputmode="numeric"
+              class="field-input"
+              data-test="input-tempmax-modal"
+              aria-label="Temperatura máxima (°C)"
+              formControlName="weatherMaxC"
+            />
+          </closet-field>
+
+          <closet-field label="Marca (opcional)" controlId="garment-brand">
+            <input
+              id="garment-brand"
+              type="text"
+              class="field-input"
+              data-test="input-brand-modal"
+              aria-label="Marca"
+              formControlName="brand"
+            />
+          </closet-field>
+
+          <closet-field label="Talla (opcional)" controlId="garment-size">
+            <input
+              id="garment-size"
+              type="text"
+              class="field-input"
+              data-test="input-size-modal"
+              aria-label="Talla"
+              formControlName="size"
+            />
+          </closet-field>
+
+          <div class="field col-span-full">
+            <span class="uplabel">Temporadas</span>
+            <closet-chip-group
+              label="Temporadas"
+              dataTest="action-season-modal"
+              [options]="seasonOptions"
+              [selected]="seasons()"
+              (changed)="seasons.set($event)"
+            />
+          </div>
+        </form>
+
+        <closet-error-banner class="mt-4 block" [message]="errorMessage()" />
+      </div>
+
+      <div dialog-footer class="contents">
+        <button type="button" class="pill" data-test="action-cancel-modal" (click)="requestClose()">
+          Cancelar
+        </button>
+        <closet-submit-button
+          type="button"
+          [label]="saveLabel()"
+          [loadingLabel]="
+            uploadTotal() > 0
+              ? 'Subiendo ' + (uploadedCount() + 1) + ' de ' + uploadTotal() + '…'
+              : 'Guardando…'
+          "
+          dataTest="action-save-modal"
+          [loading]="saving()"
+          [disabled]="form.invalid || tagging()"
+          [icon]="iconSave"
+          (clicked)="submit()"
+        />
+      </div>
+    </closet-dialog>
+  </div>
+</div>

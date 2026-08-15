@@ -1,0 +1,286 @@
+<article class="look-card" data-test="div-lookcard-page">
+  <header class="look-head">
+    <div class="min-w-0">
+      <div class="uplabel">
+        Look {{ index() + 1 }} · {{ labels.styleArchetype[look().styleTag] }}
+        @if (outfit()) {
+          · Estilista IA
+        }
+      </div>
+      <h2 class="serif look-title">{{ look().title }}</h2>
+      <p class="look-oneliner">{{ look().oneLiner }}</p>
+      @if (outfit(); as saved) {
+        <p class="look-description">{{ saved.description }}</p>
+        <div class="look-badges">
+          @if (saved.isFavorite) {
+            <span class="badge">Guardado</span>
+          }
+          @if (saved.wornAt) {
+            <span class="badge">Ya te lo pusiste</span>
+          }
+          @if (saved.rating !== null) {
+            <span class="badge">{{ saved.rating }}/5</span>
+          }
+          @if (saved.rejectedReason; as reason) {
+            <span class="badge badge-warn">
+              Rechazado: {{ labels.outfitRejectedReason[reason] }}
+            </span>
+          }
+          @if (saved.isStale) {
+            <span class="badge badge-warn">
+              Alguna prenda ya no está en el clóset: este look no se puede armar
+            </span>
+          }
+        </div>
+      }
+    </div>
+    <div class="look-score" [title]="'Nota del motor determinista, no una probabilidad'">
+      <span class="look-score-value">{{ look().engineScore }}</span>
+      <span class="look-score-label">motor</span>
+    </div>
+  </header>
+
+  <div class="look-body">
+    <!-- Fotos reales de las prendas -->
+    <div class="look-gallery">
+      @for (item of look().items; track item.garmentId) {
+        @if (item.thumbUrl; as thumb) {
+          <button
+            type="button"
+            class="look-photo"
+            data-test="action-viewphoto-page"
+            [attr.aria-label]="'Ver ' + item.name"
+            (click)="openViewer(item)"
+          >
+            <img [src]="thumb" [alt]="item.name" loading="lazy" />
+          </button>
+        } @else {
+          <span
+            class="look-photo look-photo-empty"
+            [style.background]="item.colorHex"
+            [title]="item.name + ' (sin foto)'"
+          ></span>
+        }
+      }
+    </div>
+
+    <!-- Ficha -->
+    <div class="look-sheet">
+      <closet-look-section title="Prendas" [collapsible]="layout.isMobile()">
+        <ul class="item-list">
+          @for (item of look().items; track item.garmentId) {
+            <li class="item-row">
+              <span
+                class="item-swatch"
+                [style.background]="item.colorHex"
+                aria-hidden="true"
+              ></span>
+              <div class="min-w-0">
+                <p class="item-name">
+                  {{ item.name }}
+                  <span class="item-role">{{ labels.outfitItemRole[item.role] }}</span>
+                </p>
+                <p class="item-meta">
+                  {{ item.garmentTypeName }} · {{ item.colorName }}
+                  @if (item.brand) {
+                    · {{ item.brand }}
+                  }
+                </p>
+                <p class="item-why">{{ item.why }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      </closet-look-section>
+
+      <closet-look-section title="Paleta de colores" [collapsible]="layout.isMobile()">
+        <div class="palette">
+          @for (hex of look().colorPalette; track hex) {
+            <span class="palette-dot" [style.background]="hex" [title]="hex"></span>
+          }
+        </div>
+      </closet-look-section>
+
+      @if (hasReferenceBrands()) {
+        <closet-look-section
+          title="Marcas de referencia"
+          hint="Referencias de estilo, no precio ni disponibilidad"
+          [collapsible]="layout.isMobile()"
+        >
+          @if (outfit(); as saved) {
+            <dl class="brand-list">
+              @if (saved.referenceBrands.luxury.length > 0) {
+                <dt>Lujo</dt>
+                <dd>{{ saved.referenceBrands.luxury.join(' · ') }}</dd>
+              }
+              @if (saved.referenceBrands.affordable.length > 0) {
+                <dt>Asequible</dt>
+                <dd>{{ saved.referenceBrands.affordable.join(' · ') }}</dd>
+              }
+            </dl>
+          }
+        </closet-look-section>
+      }
+
+      <closet-look-section title="Cuándo usarlo" [collapsible]="layout.isMobile()">
+        <ul class="tag-list">
+          @for (occasion of look().occasions; track occasion) {
+            <li class="tag">{{ labels.lookOccasion[occasion] }}</li>
+          }
+          @if (weatherText(); as weather) {
+            <li class="tag">{{ weather }}</li>
+          }
+        </ul>
+      </closet-look-section>
+
+      <closet-look-section title="Notas de estilo" [collapsible]="layout.isMobile()">
+        <ul class="note-list">
+          @for (note of look().styleNotes; track note) {
+            <li>{{ note }}</li>
+          }
+        </ul>
+      </closet-look-section>
+
+      <closet-look-section
+        title="Ajuste recomendado"
+        [hint]="heightHint()"
+        [collapsible]="layout.isMobile()"
+      >
+        @if (look().fitNotes.length > 0) {
+          <ul class="note-list">
+            @for (note of look().fitNotes; track note) {
+              <li>{{ note }}</li>
+            }
+          </ul>
+        } @else {
+          <p class="look-hint">
+            Añade tu altura, tus medidas o el corte que te resulta cómodo en el perfil y aquí
+            aparecerán notas de ajuste basadas en esos datos.
+          </p>
+        }
+      </closet-look-section>
+
+      @if (look().scoreBreakdown.length > 0) {
+        <closet-look-section title="Por qué encaja" [collapsible]="true" [startOpen]="false">
+          <ul class="score-list">
+            @for (line of look().scoreBreakdown; track line.signal) {
+              <li class="score-row">
+                <span class="score-name">{{ labels.lookScoreSignal[line.signal] }}</span>
+                <span class="score-bar" aria-hidden="true">
+                  <span class="score-fill" [style.width]="barWidth(line)"></span>
+                </span>
+                <span class="score-reason">{{ line.reason }}</span>
+              </li>
+            }
+          </ul>
+        </closet-look-section>
+      }
+
+      @if (outfit(); as saved) {
+        @if (saved.qualityNote; as note) {
+          <p class="look-quality" data-test="div-qualitynote-page">{{ note }}</p>
+        }
+      }
+    </div>
+  </div>
+
+  @if (outfit(); as saved) {
+    <footer class="look-actions" data-test="div-lookactions-page">
+      <div class="action-row">
+        <button
+          type="button"
+          class="pill"
+          data-test="action-favorite-page"
+          [class.pill-solid]="saved.isFavorite"
+          [disabled]="busy()"
+          (click)="toggleFavorite()"
+        >
+          {{ saved.isFavorite ? 'Quitar de guardados' : 'Guardar' }}
+        </button>
+        <button
+          type="button"
+          class="pill"
+          data-test="action-worn-page"
+          [disabled]="busy()"
+          (click)="wornMarked.emit()"
+        >
+          Me lo puse
+        </button>
+        <button
+          type="button"
+          class="pill"
+          data-test="action-reject-page"
+          [disabled]="busy()"
+          (click)="toggleReasonPicker()"
+        >
+          No me gusta
+        </button>
+        <button
+          type="button"
+          class="pill pill-quiet"
+          data-test="action-deletelook-page"
+          [disabled]="busy()"
+          (click)="deleted.emit()"
+        >
+          Borrar
+        </button>
+      </div>
+
+      <div class="action-row">
+        <span class="action-label">Valóralo</span>
+        @for (star of ratingStars; track star) {
+          <button
+            type="button"
+            class="star"
+            data-test="action-rate-page"
+            [class.star-on]="saved.rating !== null && star <= saved.rating"
+            [attr.aria-label]="'Valorar con ' + star"
+            [disabled]="busy()"
+            (click)="rated.emit(star)"
+          >
+            ★
+          </button>
+        }
+      </div>
+
+      @if (choosingReason()) {
+        <div class="reject-row" data-test="div-rejectreason-page">
+          <label class="action-label" for="reject-reason-{{ saved.id }}">Motivo</label>
+          <select
+            class="field-select"
+            id="reject-reason-{{ saved.id }}"
+            data-test="select-rejectreason-page"
+            (change)="onReason($event)"
+          >
+            @for (reason of rejectedReasons; track reason) {
+              <option [value]="reason" [selected]="reason === chosenReason()">
+                {{ labels.outfitRejectedReason[reason] }}
+              </option>
+            }
+          </select>
+          <button
+            type="button"
+            class="pill pill-solid"
+            data-test="action-confirmreject-page"
+            [disabled]="busy()"
+            (click)="confirmReject()"
+          >
+            Rechazar
+          </button>
+        </div>
+        <p class="look-hint">
+          El motivo entra en el motor: la próxima tanda penaliza lo que rechazaste por esa razón, no
+          la prenda entera.
+        </p>
+      }
+    </footer>
+  }
+</article>
+
+@if (viewerIndex() !== null && hasPhotos()) {
+  <closet-image-viewer
+    [images]="photos()"
+    [startIndex]="viewerIndex() ?? 0"
+    (dismissed)="closeViewer()"
+  />
+}

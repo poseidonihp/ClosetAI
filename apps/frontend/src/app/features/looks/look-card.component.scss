@@ -1,0 +1,371 @@
+.look-card {
+  border: 1px solid var(--qp-line);
+  border-radius: 14px;
+  background: var(--qp-bg-soft);
+  overflow: hidden;
+}
+
+.look-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 18px 14px;
+  border-bottom: 1px solid var(--qp-line);
+}
+
+.look-title {
+  margin: 3px 0 0;
+  font-size: 23px;
+  line-height: 1.15;
+}
+
+.look-oneliner {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--qp-mute);
+}
+
+.look-description {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--qp-ink-soft);
+}
+
+.look-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 10.5px;
+  color: var(--qp-mute);
+}
+.badge-warn {
+  border-color: var(--qp-clay);
+  color: var(--qp-clay);
+}
+
+.look-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--qp-line-strong);
+}
+.look-score-value {
+  font-size: 18px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--qp-ink);
+}
+.look-score-label {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+
+.look-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .look-body {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+    align-items: start;
+  }
+  .look-gallery {
+    border-right: 1px solid var(--qp-line);
+    border-bottom: 0;
+    position: sticky;
+    top: 0;
+  }
+}
+
+.look-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+  padding: 14px;
+  border-bottom: 1px solid var(--qp-line);
+}
+
+.look-photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  border: 1px solid var(--qp-line-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--qp-bg-active);
+  cursor: pointer;
+}
+.look-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.look-photo-empty {
+  cursor: default;
+}
+
+.look-sheet {
+  padding: 4px 18px 16px;
+}
+
+// -- Prendas ---------------------------------------------------------------
+
+.item-list,
+.note-list,
+.tag-list,
+.score-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--qp-line);
+}
+.item-row:last-child {
+  border-bottom: 0;
+}
+
+.item-swatch {
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+}
+
+.item-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--qp-ink);
+}
+
+.item-role {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+
+.item-meta {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--qp-mute);
+}
+
+.item-why {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+}
+
+// -- Paleta ----------------------------------------------------------------
+
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.palette-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+}
+
+// -- Ocasiones y notas -----------------------------------------------------
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-list .tag {
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+
+.note-list li {
+  position: relative;
+  padding-left: 14px;
+  margin-bottom: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--qp-ink-soft);
+}
+.note-list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--qp-mute-2);
+}
+
+.look-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--qp-mute);
+}
+
+// -- Desglose de la nota ---------------------------------------------------
+
+.score-row {
+  display: grid;
+  grid-template-columns: 92px 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+@media (max-width: 639px) {
+  .score-row {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+  .score-bar {
+    display: none;
+  }
+}
+
+.score-name {
+  font-size: 11.5px;
+  color: var(--qp-mute);
+}
+
+.score-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--qp-bg-active);
+  overflow: hidden;
+}
+.score-fill {
+  display: block;
+  height: 100%;
+  background: var(--qp-sage);
+}
+
+.score-reason {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+}
+
+// -- Marcas de referencia --------------------------------------------------
+
+.brand-list {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 4px 10px;
+  margin: 0;
+}
+.brand-list dt {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+.brand-list dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+}
+
+// -- Nota de calidad y acciones del look guardado ---------------------------
+
+.look-quality {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-left: 2px solid var(--qp-line-strong);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--qp-mute);
+}
+
+.look-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 18px 15px;
+  border-top: 1px solid var(--qp-line);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.action-label {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+
+// Borrar es la única acción destructiva de la ficha: se apaga para que no compita
+// con las tres que sí se usan a diario.
+.action-row .pill-quiet {
+  color: var(--qp-mute);
+}
+.action-row .pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.star {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--qp-line-strong);
+  cursor: pointer;
+}
+.star-on {
+  color: var(--qp-sage);
+}
+.star:disabled {
+  cursor: default;
+}
+
+.reject-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.reject-row .field-select {
+  flex: 1;
+  min-width: 190px;
+}

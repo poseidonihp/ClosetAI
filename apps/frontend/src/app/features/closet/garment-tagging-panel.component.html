@@ -1,0 +1,99 @@
+<section class="tagging" data-test="div-tagging-modal">
+  <div class="tagging-head">
+    <div>
+      <div class="uplabel">Etiquetado automático</div>
+      <p class="tagging-lead">
+        @if (photoCount() === 0) {
+          Añade una foto y la IA propondrá tipo, color, material y formalidad. Si subes varias
+          —frontal, detalle del tejido, etiqueta de composición— acierta más.
+        } @else if (isUnusable()) {
+          De estas fotos no se puede sacar una prenda, así que no se rellenó nada.
+        } @else if (hasDraft()) {
+          Estos atributos son una propuesta de la IA. Revísalos y corrige lo que haga falta.
+        } @else {
+          La IA analiza tus fotos y rellena el formulario. Tú decides qué se guarda.
+        }
+        @if (costsNewCall()) {
+          <strong> Volver a etiquetar gasta una llamada nueva.</strong>
+        }
+      </p>
+      @if (photosLabel(); as photos) {
+        <p class="hint" data-test="div-taggingphotos-modal">{{ photos }}</p>
+      }
+    </div>
+
+    <closet-submit-button
+      type="button"
+      [label]="actionLabel()"
+      [loadingLabel]="runningLabel()"
+      dataTest="action-tag-modal"
+      [loading]="running()"
+      [disabled]="!canRun()"
+      [icon]="iconSparkles"
+      (clicked)="run()"
+    />
+  </div>
+
+  @if (tagging(); as state) {
+    <dl class="tagging-facts">
+      <div>
+        <dt>Estado</dt>
+        <dd data-test="div-taggingstatus-modal">{{ labels.taggingStatus[state.status] }}</dd>
+      </div>
+      @if (state.model) {
+        <div>
+          <dt>Modelo</dt>
+          <dd>{{ state.model }}</dd>
+        </div>
+      }
+      @if (costLabel(); as cost) {
+        <div>
+          <dt>Costo</dt>
+          <dd data-test="div-taggingcost-modal">{{ cost }}</dd>
+        </div>
+      }
+      @if (state.attempts > 0) {
+        <div>
+          <dt>Intentos</dt>
+          <dd>{{ state.attempts }}</dd>
+        </div>
+      }
+    </dl>
+
+    @if (monthLabel(); as month) {
+      <p class="hint" data-test="div-aibudget-modal">Llevas {{ month }}.</p>
+    }
+
+    @if (isUnusable()) {
+      <p class="tagging-unusable" data-test="div-unusable-modal">
+        <strong>No se pudo catalogar.</strong>
+        {{ state.unusableReason ?? 'De estas fotos no se distingue una prenda concreta.' }}
+        Borra la foto que no sirva o añade una de la prenda, y vuelve a analizar. También puedes
+        rellenar los datos a mano.
+      </p>
+    } @else if (state.notes; as notes) {
+      <p class="tagging-note">{{ notes }}</p>
+    }
+
+    @if (state.personVisible) {
+      <p class="tagging-privacy" data-test="div-privacy-modal">
+        En esta foto aparece una persona. La IA sólo describe la prenda: no analiza ni guarda nada
+        sobre quien la lleva. Si prefieres, sube una foto de la prenda sola.
+      </p>
+    }
+
+    @if (reviewLabels().length > 0) {
+      <p class="hint" data-test="div-review-modal">
+        La IA no vio claro: {{ reviewLabels().join(', ') }}. Compruébalo antes de guardar.
+      </p>
+    }
+
+    @if (manualLabels().length > 0) {
+      <p class="hint" data-test="div-manual-modal">
+        Corregiste a mano: {{ manualLabels().join(', ') }}. Un reetiquetado normal no lo toca.
+      </p>
+    }
+  }
+
+  <closet-error-banner class="mt-2 block" [message]="errorMessage()" />
+</section>

@@ -1,0 +1,61 @@
+// =============================================================================
+// Tokens de color — fuente única de verdad.
+// Los valores RGB (sin función) se exponen como triples "R G B" para que Tailwind
+// los consuma vía `rgb(var(--color-xxx) / <alpha-value>)`. Los `--qp-*` van en
+// hex/rgba directos porque no se usan con la sintaxis de alfa de Tailwind.
+// Ningún componente hardcodea un hex: se añade el token aquí, en :root y .dark.
+// =============================================================================
+
+:root {
+  // -- Semánticos (modo claro) -----------------------------------------------
+  --color-bg: 245 241 232;
+  --color-bg-elevated: 255 255 255;
+  --color-fg: 26 24 21;
+  --color-fg-muted: 122 114 106;
+  --color-border: 222 216 204;
+  --color-border-strong: 198 190 176;
+  --color-success: 74 107 79;
+  --color-danger: 181 80 60;
+  --color-warning: 200 150 60;
+  --color-info: 70 110 150;
+
+  // -- Superficies Quartz-Paper (modo claro) ---------------------------------
+  --qp-bg: #f5f1e8;
+  --qp-bg-soft: #f0ebdf;
+  --qp-bg-active: #e5ddc9;
+  --qp-ink: #1a1815;
+  --qp-ink-soft: #5b5249;
+  --qp-mute: #7a726a;
+  --qp-mute-2: #9a8f82;
+  --qp-line: rgba(26, 24, 21, 0.08);
+  --qp-line-strong: rgba(26, 24, 21, 0.14);
+  --qp-sage: #4a6b4f;
+  --qp-clay: #b5503c;
+}
+
+.dark {
+  // -- Semánticos (modo oscuro) ----------------------------------------------
+  --color-bg: 20 17 13;
+  --color-bg-elevated: 28 24 18;
+  --color-fg: 240 235 223;
+  --color-fg-muted: 154 143 130;
+  --color-border: 48 42 34;
+  --color-border-strong: 70 62 50;
+  --color-success: 127 174 132;
+  --color-danger: 214 130 103;
+  --color-warning: 226 176 96;
+  --color-info: 130 170 210;
+
+  // -- Superficies Quartz-Paper (modo oscuro) --------------------------------
+  --qp-bg: #14110d;
+  --qp-bg-soft: #1c1812;
+  --qp-bg-active: #2a2419;
+  --qp-ink: #f0ebdf;
+  --qp-ink-soft: #c8bfb0;
+  --qp-mute: #9a8f82;
+  --qp-mute-2: #7a726a;
+  --qp-line: rgba(245, 241, 232, 0.08);
+  --qp-line-strong: rgba(245, 241, 232, 0.16);
+  --qp-sage: #7fae84;
+  --qp-clay: #d68267;
+}

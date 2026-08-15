@@ -1,0 +1,298 @@
+@use './styles/colors';
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-fg));
+  font-family:
+    'Geist',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-feature-settings: 'ss01', 'cv11', 'tnum';
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Controles de formulario — quitar el chrome nativo y adoptar la paleta. */
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+/* Utilidades compartidas. */
+.serif {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+
+.uplabel {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 12px;
+  color: var(--qp-ink);
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.pill:hover {
+  background: var(--qp-bg-soft);
+}
+.pill-solid {
+  background: var(--qp-ink);
+  color: var(--qp-bg);
+  border-color: var(--qp-ink);
+}
+.pill-solid:hover {
+  opacity: 0.92;
+  background: var(--qp-ink);
+}
+.pill-solid:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  color: var(--qp-ink);
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.icon-btn:hover {
+  background: var(--qp-bg-soft);
+}
+
+.panel {
+  background: var(--qp-bg-soft);
+  color: var(--qp-ink);
+  border: 1px solid var(--qp-line-strong);
+  box-shadow:
+    0 24px 60px rgba(26, 24, 21, 0.18),
+    0 2px 6px rgba(26, 24, 21, 0.08);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-input,
+.field-select,
+.field-textarea {
+  background: var(--qp-bg);
+  color: var(--qp-ink);
+  border: 1px solid var(--qp-line-strong);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+  font-feature-settings: 'tnum';
+}
+.field-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237a726a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+.field-textarea {
+  resize: vertical;
+  min-height: 84px;
+  line-height: 1.5;
+}
+.field-input:hover,
+.field-select:hover,
+.field-textarea:hover {
+  border-color: var(--qp-ink);
+}
+.field-input:focus,
+.field-select:focus,
+.field-textarea:focus {
+  border-color: var(--qp-ink);
+  background: var(--qp-bg);
+  box-shadow: 0 0 0 3px rgba(26, 24, 21, 0.06);
+}
+
+.check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--qp-line-strong);
+  background: var(--qp-bg);
+  cursor: pointer;
+  position: relative;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+.check:checked {
+  background: var(--qp-ink);
+  border-color: var(--qp-ink);
+}
+.check:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--qp-bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Estructura común de las páginas del shell. Vive aquí y no en cada componente
+   porque Perfil y Clóset comparten exactamente la misma cabecera y tarjetas. */
+.page-header {
+  padding: 22px 24px 4px;
+}
+.page-title {
+  font-size: 32px;
+  line-height: 1.1;
+  margin: 2px 0 0;
+}
+.page-lead {
+  margin-top: 8px;
+  max-width: 68ch;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--qp-mute);
+}
+.page-body {
+  flex: 1;
+  padding: 18px 24px 32px;
+}
+
+.panel-card {
+  background: var(--qp-bg-soft);
+  border: 1px solid var(--qp-line);
+  border-radius: 12px;
+  padding: 18px 20px 20px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--qp-ink);
+  margin: 0;
+}
+.section-hint {
+  margin: 4px 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--qp-mute);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 12px;
+  color: var(--qp-ink);
+}
+.tag-remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--qp-bg-active);
+  color: var(--qp-ink-soft);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tag-remove:hover {
+  background: var(--qp-line-strong);
+}
+
+@media (max-width: 639px) {
+  .page-header {
+    padding: 16px 16px 0;
+  }
+  .page-title {
+    font-size: 26px;
+  }
+  .page-body {
+    padding: 14px 16px 28px;
+  }
+  .panel-card {
+    padding: 16px;
+  }
+}
+
+/* Menús desplegables (CDK Menu se renderiza en un portal: van como utilidades globales). */
+.qp-menu {
+  background: var(--qp-bg-soft);
+  border: 1px solid var(--qp-line-strong);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow:
+    0 16px 40px rgba(26, 24, 21, 0.18),
+    0 2px 6px rgba(26, 24, 21, 0.08);
+}
+.qp-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--qp-ink);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.qp-menu-item:hover,
+.qp-menu-item:focus-visible {
+  background: var(--qp-bg-active);
+  outline: none;
+}

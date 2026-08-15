@@ -1,0 +1,58 @@
+<div class="viewer-backdrop" role="dialog" aria-modal="true" aria-label="Visor de imagen">
+  <button
+    type="button"
+    class="viewer-dismiss-area"
+    data-test="action-dismiss-modal"
+    aria-label="Cerrar visor"
+    (click)="dismissed.emit()"
+  ></button>
+
+  <button
+    type="button"
+    class="viewer-btn viewer-close"
+    data-test="action-close-modal"
+    aria-label="Cerrar"
+    (click)="dismissed.emit()"
+  >
+    <lucide-icon [name]="iconClose" class="h-5 w-5" aria-hidden="true" />
+  </button>
+
+  @if (images().length > 1) {
+    <button type="button" class="viewer-btn viewer-prev" aria-label="Anterior" (click)="prev()">
+      <lucide-icon [name]="iconPrev" class="h-6 w-6" aria-hidden="true" />
+    </button>
+    <button type="button" class="viewer-btn viewer-next" aria-label="Siguiente" (click)="next()">
+      <lucide-icon [name]="iconNext" class="h-6 w-6" aria-hidden="true" />
+    </button>
+  }
+
+  @if (current()) {
+    <div class="viewer-toolbar">
+      <button type="button" class="viewer-btn" aria-label="Reducir" (click)="zoomOut()">
+        <lucide-icon [name]="iconZoomOut" class="h-4 w-4" aria-hidden="true" />
+      </button>
+      <span class="viewer-zoom">{{ zoomLabel() }}</span>
+      <button type="button" class="viewer-btn" aria-label="Ampliar" (click)="zoomIn()">
+        <lucide-icon [name]="iconZoomIn" class="h-4 w-4" aria-hidden="true" />
+      </button>
+      @if (images().length > 1) {
+        <span class="viewer-counter">{{ index() + 1 }} / {{ images().length }}</span>
+      }
+    </div>
+  }
+
+  <div class="viewer-stage">
+    @if (current(); as image) {
+      <img
+        [src]="image.url"
+        [alt]="image.alt ?? 'Imagen'"
+        class="viewer-img"
+        [style.transform]="'scale(' + zoom() + ')'"
+        draggable="false"
+        (wheel)="onWheel($event)"
+      />
+    } @else if (emptyLabel()) {
+      <p class="viewer-empty">{{ emptyLabel() }}</p>
+    }
+  </div>
+</div>

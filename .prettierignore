@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.angular/
+.turbo/
+coverage/
+storage/
+pnpm-lock.yaml
+apps/backend/prisma/migrations/

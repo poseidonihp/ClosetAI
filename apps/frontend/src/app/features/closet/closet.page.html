@@ -1,0 +1,218 @@
+<header class="page-header">
+  <div class="closet-head">
+    <div>
+      <div class="uplabel">Tu ropa</div>
+      <h1 class="serif page-title">Clóset</h1>
+    </div>
+    <button
+      type="button"
+      class="pill pill-solid"
+      data-test="action-new-page"
+      (click)="openCreate()"
+    >
+      Nueva prenda
+    </button>
+  </div>
+</header>
+
+<div class="page-body" data-test="div-closet-page">
+  <closet-error-banner class="mb-4 block" [message]="loadError()" />
+
+  <!-- Filtros -->
+  <section class="filters" aria-label="Filtros del clóset">
+    <input
+      id="closet-search"
+      type="search"
+      class="field-input"
+      data-test="input-search-page"
+      aria-label="Buscar prenda"
+      placeholder="Buscar por nombre, tipo, marca o color…"
+      [value]="search()"
+      (input)="onSearch($event)"
+    />
+
+    <div class="filter-selects">
+      <label for="closet-climate-filter" class="sr-only">Filtrar por clima</label>
+      <select
+        id="closet-climate-filter"
+        class="field-select"
+        data-test="select-climate-page"
+        [value]="climateFilter()"
+        (change)="onClimateFilter($event)"
+      >
+        <option [value]="anyValue">Cualquier clima</option>
+        @for (climate of climateOptions; track climate) {
+          <option [value]="climate">{{ labels.climate[climate] }}</option>
+        }
+      </select>
+
+      <label for="closet-status-filter" class="sr-only">Filtrar por estado</label>
+      <select
+        id="closet-status-filter"
+        class="field-select"
+        data-test="select-status-page"
+        [value]="statusFilter()"
+        (change)="onStatusFilter($event)"
+      >
+        <option [value]="anyValue">Cualquier estado</option>
+        @for (status of statusOptions; track status) {
+          <option [value]="status">{{ labels.garmentStatus[status] }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="chip-scroll">
+      <closet-chip-group
+        label="Filtrar por parte del cuerpo"
+        dataTest="action-slot-page"
+        [options]="slotChips"
+        [selected]="slotFilter()"
+        (changed)="slotFilter.set($event)"
+      />
+    </div>
+
+    <div class="chip-scroll">
+      <closet-chip-group
+        label="Filtrar por color"
+        dataTest="action-color-page"
+        [multi]="false"
+        [options]="colorChips"
+        [selected]="colorSelection()"
+        (changed)="onColorChips($event)"
+      />
+    </div>
+
+    @if (hasFilters()) {
+      <div class="flex items-center gap-3">
+        <span class="hint">{{ filtered().length }} de {{ garments().length }} prendas</span>
+        <button
+          type="button"
+          class="pill"
+          data-test="action-clearfilters-page"
+          (click)="clearFilters()"
+        >
+          Quitar filtros
+        </button>
+      </div>
+    }
+  </section>
+
+  <!-- Rejilla -->
+  @if (loading() && garments().length === 0) {
+    <div class="garment-grid">
+      @for (card of skeletonCards; track card) {
+        <div class="garment-card">
+          <closet-skeleton height="100%" radius="0" />
+        </div>
+      }
+    </div>
+  } @else if (garments().length === 0) {
+    <closet-empty-state
+      title="Todavía no hay prendas"
+      description="Añade tu primera prenda con una foto: en el móvil puedes usar la cámara y en el escritorio arrastrar o pegar las imágenes aquí mismo."
+      [icon]="iconShirt"
+    >
+      <button
+        type="button"
+        class="pill pill-solid"
+        data-test="action-newempty-page"
+        (click)="openCreate()"
+      >
+        Añadir prenda
+      </button>
+    </closet-empty-state>
+  } @else if (filtered().length === 0) {
+    <closet-empty-state
+      title="Nada coincide con esos filtros"
+      description="Prueba a quitar alguno para ver más prendas de tu clóset."
+      [icon]="iconShirt"
+    >
+      <button
+        type="button"
+        class="pill"
+        data-test="action-clearempty-page"
+        (click)="clearFilters()"
+      >
+        Quitar filtros
+      </button>
+    </closet-empty-state>
+  } @else {
+    <div class="garment-grid">
+      @for (garment of filtered(); track garment.id) {
+        <article class="garment-card" [attr.data-test]="'div-garment-page'">
+          <button
+            type="button"
+            class="garment-open"
+            [attr.aria-label]="'Editar ' + garment.name"
+            (click)="openEdit(garment)"
+          >
+            @if (coverUrl(garment); as cover) {
+              <img [src]="cover" [alt]="garment.name" loading="lazy" />
+            } @else {
+              <span class="garment-noimage" [style.background]="garment.primaryColorHex"></span>
+            }
+          </button>
+
+          @if (garment.status !== 'ACTIVE') {
+            <span class="garment-status">{{ labels.garmentStatus[garment.status] }}</span>
+          }
+
+          @if (garment.taggingStatus !== 'CONFIRMED') {
+            <span class="garment-tagging" data-test="div-tagging-page">
+              {{ labels.taggingStatus[garment.taggingStatus] }}
+            </span>
+          }
+
+          <div class="garment-info">
+            <p class="garment-name" [title]="garment.name">{{ garment.name }}</p>
+            @if (!hasRealAttributes(garment)) {
+              <p class="garment-meta">
+                {{
+                  garment.taggingStatus === 'FAILED'
+                    ? 'Sin etiquetar · complétala a mano'
+                    : 'Sin revisar · no cuenta para tus looks'
+                }}
+              </p>
+            } @else {
+              <p class="garment-meta">
+                <span
+                  class="garment-dot"
+                  [style.background]="garment.primaryColorHex"
+                  aria-hidden="true"
+                ></span>
+                {{ garment.garmentTypeName }} · {{ colorLabel(garment) }}
+              </p>
+              <p class="garment-meta">
+                {{ slotLabel(garment.slot) }} · {{ formalityLabel(garment.formality) }}
+              </p>
+            }
+          </div>
+
+          <button
+            type="button"
+            class="garment-delete"
+            data-test="action-delete-page"
+            [attr.aria-label]="'Borrar ' + garment.name"
+            (click)="remove(garment)"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </article>
+      }
+    </div>
+  }
+</div>
+
+@if (dragging()) {
+  <div class="drop-overlay" aria-hidden="true">
+    <div class="drop-hint">Suelta las fotos para crear una prenda</div>
+  </div>
+}
+
+@if (dialogOpen()) {
+  <closet-garment-dialog
+    [garment]="editing()"
+    [initialFiles]="droppedFiles()"
+    (closed)="closeDialog()"
+  />
+}

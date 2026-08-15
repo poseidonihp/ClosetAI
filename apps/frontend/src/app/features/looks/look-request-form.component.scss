@@ -1,0 +1,27 @@
+.request-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.suggested-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+  cursor: pointer;
+}
+.suggested-row .check {
+  margin-top: 2px;
+  flex: none;
+}
+
+.form-hint {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--qp-mute);
+}

@@ -1,0 +1,596 @@
+// Schema de closetAI — Fases 0, 1, 3 y 4.
+// Fase 0: usuarios, rotación de refresh tokens e infraestructura de IA
+// (AiJob + AiUsageLog). Fase 1: perfil de estilo, catálogo de tipos de prenda,
+// prendas e imágenes. Fase 3: etiquetado por visión sobre esa misma prenda.
+// Fase 4: looks del estilista (Outfit + OutfitItem) y su feedback, que es lo
+// primero que sí conviene guardar porque hay narrativa pagada detrás.
+// OutfitRender llega en la Fase 6 y WardrobeGap en la Fase 5.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================================
+// Users
+// =====================================================================
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  timezone     String   @default("America/Bogota")
+  locale       String   @default("es")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  refreshTokens  RefreshToken[]
+  aiJobs         AiJob[]
+  aiUsageLogs    AiUsageLog[]
+  styleProfile   StyleProfile?
+  garments       Garment[]
+  outfits        Outfit[]
+  outfitFeedback OutfitFeedback[]
+
+  @@map("users")
+}
+
+// =====================================================================
+// Refresh tokens (rotación + detección de reuso por familia)
+// =====================================================================
+
+model RefreshToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  // jti del JWT de refresh (claim único por token emitido).
+  jti           String    @unique @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  // Todos los tokens descendientes de un mismo login comparten familia.
+  // Si se detecta reuso de un jti revocado, se revoca la familia entera.
+  familyId      String    @map("family_id") @db.Uuid
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  // jti del token que reemplazó a éste durante la rotación.
+  replacedByJti String?   @map("replaced_by_jti") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// =====================================================================
+// IA — jobs y consumo
+// =====================================================================
+
+enum AiJobKind {
+  TAGGING
+  STYLING
+  GAP_ANALYSIS
+  RENDER
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+/// Una llamada a un proveedor de IA, desde que se reserva presupuesto hasta que
+/// termina. `idempotencyKey` evita cobrar dos veces la misma petición y
+/// `estimatedCostUsd` es la reserva que consume el presupuesto mensual mientras
+/// el job está en vuelo; al terminar manda `actualCostUsd`.
+model AiJob {
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @map("user_id") @db.Uuid
+  kind              AiJobKind
+  status            AiJobStatus @default(QUEUED)
+  idempotencyKey    String      @map("idempotency_key")
+  attempts          Int         @default(0)
+  providerRequestId String?     @map("provider_request_id")
+  model             String?
+  estimatedCostUsd  Decimal     @default(0) @map("estimated_cost_usd") @db.Decimal(12, 6)
+  actualCostUsd     Decimal?    @map("actual_cost_usd") @db.Decimal(12, 6)
+  errorMessage      String?     @map("error_message")
+  startedAt         DateTime?   @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?   @map("finished_at") @db.Timestamptz(3)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage          AiUsageLog[]
+  taggedGarments Garment[]    @relation("GarmentTaggingJob")
+  outfits        Outfit[]     @relation("OutfitStylingJob")
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("ai_jobs")
+}
+
+/// Consumo real reportado por el proveedor. Es el registro de auditoría: el
+/// presupuesto se calcula sobre `AiJob` para no contar dos veces la reserva.
+model AiUsageLog {
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @map("user_id") @db.Uuid
+  jobId             String?     @map("job_id") @db.Uuid
+  kind              AiJobKind
+  model             String
+  inputTokens       Int         @default(0) @map("input_tokens")
+  outputTokens      Int         @default(0) @map("output_tokens")
+  cachedInputTokens Int?        @map("cached_input_tokens")
+  imageCount        Int         @default(0) @map("image_count")
+  costUsd           Decimal     @default(0) @map("cost_usd") @db.Decimal(12, 6)
+  latencyMs         Int         @default(0) @map("latency_ms")
+  providerRequestId String?     @map("provider_request_id")
+  status            AiJobStatus
+  errorCode         String?     @map("error_code")
+  errorMessage      String?     @map("error_message")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  AiJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([jobId])
+  @@map("ai_usage_logs")
+}
+
+// =====================================================================
+// Vocabulario del dominio
+// =====================================================================
+
+/// El género es opcional y nunca excluye una prenda por sí solo: sirve para
+/// ordenar el catálogo y redactar, no para filtrar.
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  UNSPECIFIED
+}
+
+/// Cómo quiere presentarse el usuario. Independiente de `Gender`.
+enum PresentationPreference {
+  MASCULINE
+  FEMININE
+  ANDROGYNOUS
+  NEUTRAL
+}
+
+/// Sólo se guarda si el usuario lo declara. Nunca se infiere de una fotografía.
+enum BodyShape {
+  RECTANGLE
+  TRIANGLE
+  INVERTED_TRIANGLE
+  HOURGLASS
+  OVAL
+}
+
+/// Vocabulario único para el corte que prefiere el usuario y el corte real de
+/// una prenda: así una preferencia se compara con un atributo sin traducciones.
+enum FitPreference {
+  RELAXED
+  REGULAR
+  SLIM
+  OVERSIZED
+}
+
+enum StyleArchetype {
+  MINIMALIST
+  SMART_CASUAL
+  CLASSIC
+  STREETWEAR
+  BOHO
+  ROMANTIC
+  ANDROGYNOUS
+  SPORTY
+}
+
+enum BudgetTier {
+  BUDGET
+  MID
+  PREMIUM
+  LUXURY
+}
+
+/// Clima habitual de la ciudad del usuario. En Colombia pesa más que la estación.
+enum Climate {
+  HOT
+  WARM
+  TEMPERATE
+  COOL
+  COLD
+  VARIABLE
+}
+
+enum GarmentSlot {
+  TOP
+  MID_LAYER
+  OUTERWEAR
+  BOTTOM
+  FULL_BODY
+  FOOTWEAR
+  ACCESSORY
+}
+
+/// Ayuda de catálogo para ordenar y sugerir. Jamás impide registrar una prenda.
+enum AppliesTo {
+  MALE
+  FEMALE
+  BOTH
+}
+
+enum Season {
+  SPRING
+  SUMMER
+  AUTUMN
+  WINTER
+}
+
+enum GarmentPattern {
+  SOLID
+  STRIPED
+  CHECKED
+  FLORAL
+  GRAPHIC
+  ANIMAL
+  GEOMETRIC
+  OTHER
+}
+
+enum PatternScale {
+  NONE
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum GarmentMaterial {
+  COTTON
+  DENIM
+  WOOL
+  LINEN
+  LEATHER
+  SYNTHETIC
+  SILK
+  KNIT
+  BLEND
+  OTHER
+}
+
+enum GarmentStatus {
+  ACTIVE
+  LAUNDRY
+  STORED
+  DONATED
+  ARCHIVED
+}
+
+/// PENDING: sin etiquetar. SUGGESTED: borrador de la IA sin revisar.
+/// CONFIRMED: revisado por el usuario. FAILED: la visión no pudo etiquetarla y
+/// hay que reintentar o completarla a mano. El motor sólo usa CONFIRMED.
+enum TaggingStatus {
+  PENDING
+  SUGGESTED
+  CONFIRMED
+  FAILED
+}
+
+enum GarmentImageKind {
+  ORIGINAL
+  THUMB
+  DETAIL
+}
+
+/// Papel de una prenda dentro del look. Lo deriva el servidor del slot: nunca lo
+/// escribe el modelo ni viaja desde el cliente.
+enum OutfitItemRole {
+  BASE
+  LAYER
+  FOOTWEAR
+  ACCESSORY
+}
+
+/// Cuándo tiene sentido el look. Sale de la formalidad real del conjunto y del
+/// estilo pedido, nunca de una etiqueta inventada.
+enum LookOccasion {
+  DAILY
+  WORK
+  CASUAL_OUTING
+  DINNER
+  EVENT
+  TRAVEL
+  SPORT
+}
+
+/// AI: lo armó el estilista de la Fase 4. MANUAL queda para un conjunto compuesto
+/// a mano, que no puede compartir origen con lo que redactó un modelo.
+enum OutfitSource {
+  AI
+  MANUAL
+}
+
+enum OutfitFeedbackKind {
+  RATING
+  FAVORITE
+  REJECTED
+  WORN
+}
+
+/// Motivo del rechazo. Cada valor alimenta la señal del motor que le corresponde:
+/// COLOR penaliza la paleta, TOO_FORMAL/TOO_CASUAL desplazan la formalidad
+/// objetivo y UNCOMFORTABLE penaliza esos cortes.
+enum OutfitRejectedReason {
+  COLOR
+  TOO_FORMAL
+  TOO_CASUAL
+  UNCOMFORTABLE
+  NOT_MY_STYLE
+  GARMENT_UNAVAILABLE
+}
+
+// =====================================================================
+// Perfil de estilo
+// =====================================================================
+
+/// Todo es opcional salvo la relación con el usuario: ningún flujo se bloquea
+/// por no declarar género, peso o complexión. Las medidas van en `measurements`
+/// como Json versionado con unidad explícita, validado con Zod en la API.
+model StyleProfile {
+  id                      String                   @id @default(uuid()) @db.Uuid
+  userId                  String                   @unique @map("user_id") @db.Uuid
+  gender                  Gender?
+  heightCm                Int?                     @map("height_cm")
+  weightKg                Int?                     @map("weight_kg")
+  bodyShape               BodyShape?               @map("body_shape")
+  shoeSize                String?                  @map("shoe_size")
+  skinTone                String?                  @map("skin_tone")
+  hairColor               String?                  @map("hair_color")
+  measurements            Json?
+  presentationPreferences PresentationPreference[] @map("presentation_preferences")
+  styleArchetypes         StyleArchetype[]         @map("style_archetypes")
+  preferredFits           FitPreference[]          @map("preferred_fits")
+  avoidedColors           String[]                 @map("avoided_colors")
+  budgetTier              BudgetTier?              @map("budget_tier")
+  country                 String?
+  currency                String?
+  city                    String?
+  climate                 Climate?
+  notes                   String?
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avoidedGarmentTypes GarmentType[] @relation("AvoidedGarmentTypes")
+
+  @@map("style_profiles")
+}
+
+// =====================================================================
+// Catálogo de tipos de prenda (seeded, global)
+// =====================================================================
+
+/// Catálogo compartido por todos los usuarios. `appliesTo` ordena y sugiere,
+/// nunca excluye. `slug` existe para que el seed sea idempotente.
+model GarmentType {
+  id                 String      @id @default(uuid()) @db.Uuid
+  slug               String      @unique
+  name               String
+  slot               GarmentSlot
+  appliesTo          AppliesTo   @default(BOTH) @map("applies_to")
+  defaultFormality   Int         @default(3) @map("default_formality")
+  typicalSeasons     Season[]    @map("typical_seasons")
+  defaultWeatherMinC Int?        @map("default_weather_min_c")
+  defaultWeatherMaxC Int?        @map("default_weather_max_c")
+  sortOrder          Int         @default(0) @map("sort_order")
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  garments          Garment[]
+  avoidedByProfiles StyleProfile[] @relation("AvoidedGarmentTypes")
+
+  @@index([slot])
+  @@map("garment_types")
+}
+
+// =====================================================================
+// Prendas
+// =====================================================================
+
+model Garment {
+  id                  String          @id @default(uuid()) @db.Uuid
+  userId              String          @map("user_id") @db.Uuid
+  name                String
+  slot                GarmentSlot
+  garmentTypeId       String          @map("garment_type_id") @db.Uuid
+  primaryColorHex     String          @map("primary_color_hex")
+  primaryColorName    String          @map("primary_color_name")
+  secondaryColorHex   String?         @map("secondary_color_hex")
+  pattern             GarmentPattern  @default(SOLID)
+  patternScale        PatternScale    @default(NONE) @map("pattern_scale")
+  material            GarmentMaterial @default(OTHER)
+  fit                 FitPreference   @default(REGULAR)
+  /// 1 = muy casual, 5 = muy formal.
+  formality           Int             @default(3)
+  seasons             Season[]
+  weatherMinC         Int?            @map("weather_min_c")
+  weatherMaxC         Int?            @map("weather_max_c")
+  brand               String?
+  /// Marca propuesta por la visión (Fase 3). Nunca sobrescribe `brand`.
+  brandGuess          String?         @map("brand_guess")
+  size                String?
+  /// Respuesta cruda del modelo de visión, para reprocesar sin volver a pagar.
+  aiAttributes        Json?           @map("ai_attributes")
+  /// Autoevaluación por atributo del modelo (HIGH/MEDIUM/LOW). Es una etiqueta
+  /// declarada por el modelo, no una probabilidad calibrada: sólo marca qué
+  /// conviene revisar, nunca se muestra como porcentaje.
+  attributeConfidence Json?           @map("attribute_confidence")
+  taggingVersion      String?         @map("tagging_version")
+  taggedAt            DateTime?       @map("tagged_at") @db.Timestamptz(3)
+  taggingStatus       TaggingStatus   @default(PENDING) @map("tagging_status")
+  /// Último job de visión de esta prenda: da estado, intentos y costo a la UI.
+  taggingJobId        String?         @map("tagging_job_id") @db.Uuid
+  /// Atributos que el usuario tocó a mano. Un reetiquetado automático los
+  /// respeta; sólo los pisa si el usuario lo autoriza explícitamente.
+  /// El default va declarado porque la columna se añadió NOT NULL sobre una
+  /// tabla con filas: sin él, el esquema y la base quedarían desalineados y el
+  /// siguiente `migrate dev` generaría una migración fantasma.
+  manualFields        String[]        @default([]) @map("manual_fields")
+  status              GarmentStatus   @default(ACTIVE)
+  wearCount           Int             @default(0) @map("wear_count")
+  lastWornAt          DateTime?       @map("last_worn_at") @db.Timestamptz(3)
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  garmentType GarmentType    @relation(fields: [garmentTypeId], references: [id])
+  images      GarmentImage[]
+  taggingJob  AiJob?         @relation("GarmentTaggingJob", fields: [taggingJobId], references: [id], onDelete: SetNull)
+  outfitItems OutfitItem[]
+
+  @@index([userId, status])
+  @@index([userId, slot])
+  @@index([garmentTypeId])
+  @@index([taggingJobId])
+  @@map("garments")
+}
+
+/// Cada foto subida produce dos filas — ORIGINAL y THUMB — que comparten
+/// `sortOrder`; el índice único lo garantiza. La API las agrupa y expone una
+/// única "foto" con sus dos URL. El binario nunca se sirve como estático:
+/// `storageKey` sólo se resuelve por `GET /api/media`.
+model GarmentImage {
+  id         String           @id @default(uuid()) @db.Uuid
+  garmentId  String           @map("garment_id") @db.Uuid
+  kind       GarmentImageKind
+  storageKey String           @map("storage_key")
+  mimeType   String           @map("mime_type")
+  width      Int
+  height     Int
+  byteSize   Int              @map("byte_size")
+  isPrimary  Boolean          @default(false) @map("is_primary")
+  sortOrder  Int              @default(0) @map("sort_order")
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  garment Garment @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+
+  @@unique([garmentId, kind, sortOrder])
+  @@index([garmentId])
+  @@map("garment_images")
+}
+
+// =====================================================================
+// Looks del estilista (Fase 4)
+// =====================================================================
+
+/// Un look que escribió el estilista LLM sobre un candidato del motor.
+///
+/// Se persiste porque **hay una llamada pagada detrás**: la Capa 1 es determinista
+/// y recalcular es gratis, pero la narrativa del modelo no es reproducible y
+/// perderla obligaría a pagarla otra vez. Por eso también se guarda
+/// `generationSnapshot`: es la entrada exacta que vio el modelo, y sin ella no se
+/// puede comparar `promptVersion` v1 contra v2 sobre el mismo clóset.
+///
+/// No hay columna de confianza a propósito. El modelo puede autoevaluarse en
+/// `qualityNote`, que es una frase; un número sin calibración medida se leería
+/// como una probabilidad y no lo es.
+model Outfit {
+  id                 String                @id @default(uuid()) @db.Uuid
+  userId             String                @map("user_id") @db.Uuid
+  title              String
+  styleTag           StyleArchetype        @map("style_tag")
+  oneLiner           String                @map("one_liner")
+  description        String
+  occasions          LookOccasion[]
+  styleNotes         String[]              @map("style_notes")
+  fitNotes           String[]              @map("fit_notes")
+  /// Hex reales de las prendas del look; nunca un color que no esté en el clóset.
+  colorPalette       String[]              @map("color_palette")
+  /// { luxury: string[], affordable: string[] }. Son referencias de estilo, no
+  /// disponibilidad ni precio, y la ficha lo dice.
+  referenceBrands    Json                  @map("reference_brands")
+  qualityNote        String?               @map("quality_note")
+  weatherMinC        Int?                  @map("weather_min_c")
+  weatherMaxC        Int?                  @map("weather_max_c")
+  /// Nota 0–100 del motor determinista para este conjunto.
+  engineScore        Int                   @map("engine_score")
+  source             OutfitSource          @default(AI)
+  engineVersion      String                @map("engine_version")
+  promptVersion      String                @map("prompt_version")
+  modelUsed          String?               @map("model_used")
+  /// Huella del conjunto de candidatos que viajó al modelo.
+  candidateSetHash   String                @map("candidate_set_hash")
+  generationSnapshot Json                  @map("generation_snapshot")
+  /// Job que pagó esta generación. Da modelo, costo e intentos a la UI.
+  jobId              String?               @map("job_id") @db.Uuid
+  isFavorite         Boolean               @default(false) @map("is_favorite")
+  /// 1–5. Null mientras el usuario no lo valore.
+  rating             Int?
+  rejectedReason     OutfitRejectedReason? @map("rejected_reason")
+  wornAt             DateTime?             @map("worn_at") @db.Timestamptz(3)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job      AiJob?           @relation("OutfitStylingJob", fields: [jobId], references: [id], onDelete: SetNull)
+  items    OutfitItem[]
+  feedback OutfitFeedback[]
+
+  @@index([userId, createdAt])
+  @@index([userId, isFavorite])
+  @@index([jobId])
+  @@map("outfits")
+}
+
+/// Una prenda dentro del look, con el motivo por el que está.
+///
+/// Borrar la prenda arrastra su fila: un look no puede seguir citando algo que ya
+/// no existe. El `Outfit` sobrevive —su valoración sigue alimentando el bucle de
+/// aprendizaje— pero queda incompleto, y el DTO lo marca en vez de disimularlo.
+model OutfitItem {
+  id        String         @id @default(uuid()) @db.Uuid
+  outfitId  String         @map("outfit_id") @db.Uuid
+  garmentId String         @map("garment_id") @db.Uuid
+  slot      GarmentSlot
+  role      OutfitItemRole
+  /// Por qué esta prenda está en el look, en español.
+  why       String
+  sortOrder Int            @default(0) @map("sort_order")
+
+  outfit  Outfit  @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  garment Garment @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+
+  @@unique([outfitId, garmentId])
+  @@index([garmentId])
+  @@map("outfit_items")
+}
+
+/// Historial de lo que el usuario hizo con un look. **No se sobreescribe**: si
+/// cambia de opinión se añade una fila, porque el orden de los eventos es parte de
+/// la señal. El estado actual vive en las columnas de `Outfit`.
+model OutfitFeedback {
+  id        String                @id @default(uuid()) @db.Uuid
+  outfitId  String                @map("outfit_id") @db.Uuid
+  userId    String                @map("user_id") @db.Uuid
+  kind      OutfitFeedbackKind
+  rating    Int?
+  reason    OutfitRejectedReason?
+  note      String?
+  createdAt DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([outfitId])
+  @@index([userId, createdAt])
+  @@map("outfit_feedback")
+}

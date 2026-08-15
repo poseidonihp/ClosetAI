@@ -1,0 +1,50 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+.angular/
+out-tsc/
+
+# Turbo / cachés
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Env — se ignora cualquier .env salvo las plantillas de ejemplo
+.env
+.env.*
+!.env.example
+
+# Claves y certificados
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Cobertura
+coverage/
+*.lcov
+
+# Storage local (uploads de desarrollo)
+storage/

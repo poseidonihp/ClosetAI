@@ -1,0 +1,35 @@
+.look-section {
+  border-top: 1px solid var(--qp-line);
+  padding: 12px 0 14px;
+}
+
+.look-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.look-section-title::-webkit-details-marker {
+  display: none;
+}
+
+.look-section-hint {
+  letter-spacing: 0.06em;
+  color: var(--qp-mute);
+}
+
+.look-section-static > .look-section-title {
+  cursor: default;
+  pointer-events: none;
+}
+
+.look-section > :not(.look-section-title) {
+  margin-top: 10px;
+}

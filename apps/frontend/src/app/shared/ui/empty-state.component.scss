@@ -1,0 +1,40 @@
+.empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--qp-bg-active);
+  color: var(--qp-mute);
+  margin-bottom: 4px;
+}
+
+.empty-title {
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--qp-ink-soft);
+}
+
+.empty-desc {
+  font-size: 12.5px;
+  max-width: 42ch;
+  color: var(--qp-mute);
+}
+
+.empty-cta:empty {
+  display: none;
+}
+.empty-cta {
+  margin-top: 6px;
+}

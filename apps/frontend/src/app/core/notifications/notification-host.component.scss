@@ -1,0 +1,120 @@
+.toast-stack {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+@media (max-width: 639px) {
+  .toast-stack {
+    bottom: 84px;
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--qp-bg-soft);
+  color: var(--qp-ink);
+  border: 1px solid var(--qp-line-strong);
+  border-left-width: 3px;
+  box-shadow:
+    0 16px 40px rgba(26, 24, 21, 0.18),
+    0 2px 6px rgba(26, 24, 21, 0.08);
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+.toast[data-kind='success'] {
+  border-left-color: rgb(var(--color-success));
+}
+.toast[data-kind='error'] {
+  border-left-color: rgb(var(--color-danger));
+}
+.toast[data-kind='warning'] {
+  border-left-color: rgb(var(--color-warning));
+}
+.toast[data-kind='info'] {
+  border-left-color: rgb(var(--color-info));
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toast[data-kind='success'] .toast-icon {
+  color: rgb(var(--color-success));
+}
+.toast[data-kind='error'] .toast-icon {
+  color: rgb(var(--color-danger));
+}
+.toast[data-kind='warning'] .toast-icon {
+  color: rgb(var(--color-warning));
+}
+.toast[data-kind='info'] .toast-icon {
+  color: rgb(var(--color-info));
+}
+
+.toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+
+.toast-msg {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--qp-mute);
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.toast-close:hover {
+  background: var(--qp-bg-active);
+  color: var(--qp-ink);
+}

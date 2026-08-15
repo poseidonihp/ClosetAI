@@ -1,0 +1,129 @@
+<div class="shell-root" data-test="div-shell-page">
+  @if (!layout.isMobile()) {
+    @if (sidebarOpen()) {
+      <button
+        type="button"
+        class="sidebar-backdrop"
+        data-test="action-closemenu-page"
+        aria-label="Cerrar menú"
+        (click)="closeSidebar()"
+      ></button>
+    }
+
+    <aside class="sidebar" [class.open]="sidebarOpen()" aria-label="Navegación principal">
+      <closet-brand-mark class="mb-9" />
+
+      <div class="uplabel mb-2.5 pl-1">Tu clóset</div>
+      <nav class="flex flex-1 flex-col gap-0.5">
+        @for (item of nav; track item.route) {
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [attr.data-test]="'action-' + item.route.slice(1) + '-panel'"
+            (click)="closeSidebar()"
+          >
+            <lucide-icon [name]="item.icon" class="h-4 w-4" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+          </a>
+        }
+      </nav>
+
+      <div class="user-row">
+        <span class="avatar" aria-hidden="true">{{ initial() }}</span>
+        <div class="flex flex-1 flex-col overflow-hidden">
+          <span class="truncate text-[12px] font-medium">{{ user()?.displayName }}</span>
+          <span class="truncate text-[10px]" style="color: var(--qp-mute-2)">
+            {{ user()?.email }}
+          </span>
+        </div>
+        <button
+          type="button"
+          class="icon-btn h-7 w-7"
+          data-test="action-theme-panel"
+          [attr.aria-label]="theme.isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+          (click)="theme.toggle()"
+        >
+          <lucide-icon
+            [name]="theme.isDark() ? iconSun : iconMoon"
+            class="h-3.5 w-3.5"
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="icon-btn h-7 w-7"
+          data-test="action-logout-panel"
+          aria-label="Cerrar sesión"
+          (click)="logout()"
+        >
+          <lucide-icon [name]="iconLogout" class="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+    </aside>
+  }
+
+  <main class="shell-main">
+    @if (!layout.isDesktop()) {
+      <header class="topbar" data-test="div-topbar-page">
+        @if (layout.isSidebarCollapsible()) {
+          <button
+            type="button"
+            class="icon-btn h-9 w-9"
+            data-test="action-menu-page"
+            aria-label="Abrir menú de navegación"
+            [attr.aria-expanded]="sidebarOpen()"
+            (click)="toggleSidebar()"
+          >
+            <lucide-icon [name]="iconMenu" class="h-4 w-4" aria-hidden="true" />
+          </button>
+        }
+        <closet-brand-mark class="flex-1" />
+        <button
+          type="button"
+          class="icon-btn h-9 w-9"
+          data-test="action-theme-page"
+          [attr.aria-label]="theme.isDark() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+          (click)="theme.toggle()"
+        >
+          <lucide-icon
+            [name]="theme.isDark() ? iconSun : iconMoon"
+            class="h-4 w-4"
+            aria-hidden="true"
+          />
+        </button>
+        @if (layout.isMobile()) {
+          <button
+            type="button"
+            class="icon-btn h-9 w-9"
+            data-test="action-logout-page"
+            aria-label="Cerrar sesión"
+            (click)="logout()"
+          >
+            <lucide-icon [name]="iconLogout" class="h-4 w-4" aria-hidden="true" />
+          </button>
+        }
+      </header>
+    }
+
+    <div class="shell-content">
+      <router-outlet />
+    </div>
+
+    @if (layout.isMobile()) {
+      <nav class="bottom-nav" aria-label="Navegación principal">
+        @for (item of nav; track item.route) {
+          <a
+            class="bottom-nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [attr.data-test]="'action-' + item.route.slice(1) + '-page'"
+          >
+            <lucide-icon [name]="item.icon" class="h-5 w-5" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+          </a>
+        }
+      </nav>
+    }
+  </main>
+</div>

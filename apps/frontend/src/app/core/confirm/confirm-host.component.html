@@ -1,0 +1,50 @@
+@if (confirm.request(); as request) {
+  <div class="confirm-overlay">
+    <button
+      type="button"
+      class="confirm-backdrop"
+      data-test="action-dismiss-modal"
+      aria-label="Cancelar"
+      (click)="confirm.resolve(false)"
+    ></button>
+    <div
+      class="confirm-card"
+      role="alertdialog"
+      aria-modal="true"
+      [attr.aria-label]="request.title || request.message"
+    >
+      <div class="confirm-body">
+        <span class="confirm-icon" [attr.data-tone]="request.tone" aria-hidden="true">
+          <lucide-icon [name]="request.tone === 'danger' ? iconDanger : iconAsk" class="h-5 w-5" />
+        </span>
+        <div class="min-w-0">
+          @if (request.title) {
+            <h2 class="confirm-title serif">{{ request.title }}</h2>
+          }
+          <p class="confirm-msg">{{ request.message }}</p>
+        </div>
+      </div>
+
+      <footer class="confirm-actions">
+        <button
+          type="button"
+          class="pill"
+          data-test="action-cancel-modal"
+          (click)="confirm.resolve(false)"
+        >
+          {{ request.cancelLabel }}
+        </button>
+        <button
+          #confirmButton
+          type="button"
+          class="pill pill-solid"
+          data-test="action-confirm-modal"
+          [attr.data-tone]="request.tone"
+          (click)="confirm.resolve(true)"
+        >
+          {{ request.confirmLabel }}
+        </button>
+      </footer>
+    </div>
+  </div>
+}

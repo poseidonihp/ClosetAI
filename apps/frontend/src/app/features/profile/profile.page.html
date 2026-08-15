@@ -1,0 +1,344 @@
+<header class="page-header">
+  <div class="uplabel">Tus preferencias</div>
+  <h1 class="serif page-title">Perfil</h1>
+  <p class="page-lead">
+    Todo lo de esta página es opcional. Cuanto más cuentes, mejores looks arma el motor, pero nada
+    se bloquea por dejarlo en blanco y nada se deduce de tus fotos.
+  </p>
+</header>
+
+<div class="page-body" data-test="div-profile-page">
+  @if (loading() && !form.dirty) {
+    <div class="panel-card">
+      <closet-skeleton [rows]="8" height="38px" />
+    </div>
+  } @else {
+    <closet-error-banner [message]="loadError()" />
+
+    <form [formGroup]="form" class="flex flex-col gap-5" (ngSubmit)="save()">
+      <!-- Cómo te queda la ropa -->
+      <section class="panel-card">
+        <h2 class="section-title">Cómo te gusta que te quede la ropa</h2>
+        <p class="section-hint">
+          Es lo que más peso tiene: manda sobre cualquier medida o etiqueta corporal.
+        </p>
+
+        <div class="field mb-4">
+          <span class="uplabel">Cortes que te resultan cómodos</span>
+          <closet-chip-group
+            label="Cortes preferidos"
+            dataTest="action-fit-page"
+            [options]="fitOptions"
+            [selected]="preferredFits()"
+            (changed)="preferredFits.set($event)"
+          />
+        </div>
+
+        <div class="field mb-4">
+          <span class="uplabel">Arquetipos de estilo</span>
+          <closet-chip-group
+            label="Arquetipos de estilo"
+            dataTest="action-archetype-page"
+            [options]="archetypeOptions"
+            [selected]="styleArchetypes()"
+            (changed)="styleArchetypes.set($event)"
+          />
+        </div>
+
+        <div class="field">
+          <span class="uplabel">Cómo prefieres presentarte</span>
+          <closet-chip-group
+            label="Preferencias de presentación"
+            dataTest="action-presentation-page"
+            [options]="presentationOptions"
+            [selected]="presentationPreferences()"
+            (changed)="presentationPreferences.set($event)"
+          />
+        </div>
+      </section>
+
+      <!-- Datos corporales -->
+      <section class="panel-card">
+        <h2 class="section-title">Datos corporales</h2>
+        <p class="section-hint">
+          Se usan para hablar de largos y proporciones, nunca para descartar una prenda.
+        </p>
+
+        <div class="grid-fields">
+          <label for="profile-gender" class="sr-only">Género</label>
+          <closet-field label="Género" controlId="profile-gender">
+            <select
+              id="profile-gender"
+              class="field-select"
+              data-test="select-gender-page"
+              formControlName="gender"
+            >
+              <option value="">Sin especificar</option>
+              @for (option of genderOptions; track option) {
+                <option [value]="option">{{ labels.gender[option] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <closet-field label="Altura (cm)" controlId="profile-height">
+            <input
+              id="profile-height"
+              type="number"
+              inputmode="numeric"
+              class="field-input"
+              data-test="input-height-page"
+              aria-label="Altura (cm)"
+              formControlName="heightCm"
+            />
+          </closet-field>
+
+          <closet-field label="Peso (kg)" controlId="profile-weight">
+            <input
+              id="profile-weight"
+              type="number"
+              inputmode="numeric"
+              class="field-input"
+              data-test="input-weight-page"
+              aria-label="Peso (kg)"
+              formControlName="weightKg"
+            />
+          </closet-field>
+
+          <label for="profile-bodyshape" class="sr-only">Complexión</label>
+          <closet-field label="Complexión" controlId="profile-bodyshape">
+            <select
+              id="profile-bodyshape"
+              class="field-select"
+              data-test="select-bodyshape-page"
+              formControlName="bodyShape"
+            >
+              <option value="">Prefiero no decirlo</option>
+              @for (option of bodyShapeOptions; track option) {
+                <option [value]="option">{{ labels.bodyShape[option] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <closet-field label="Talla de calzado" controlId="profile-shoesize">
+            <input
+              id="profile-shoesize"
+              type="text"
+              class="field-input"
+              data-test="input-shoesize-page"
+              aria-label="Talla de calzado"
+              formControlName="shoeSize"
+            />
+          </closet-field>
+
+          <closet-field label="Tono de piel" controlId="profile-skintone">
+            <input
+              id="profile-skintone"
+              type="text"
+              class="field-input"
+              data-test="input-skintone-page"
+              placeholder="Ej. medio cálido"
+              aria-label="Tono de piel"
+              formControlName="skinTone"
+            />
+          </closet-field>
+
+          <closet-field label="Color de pelo" controlId="profile-haircolor">
+            <input
+              id="profile-haircolor"
+              type="text"
+              class="field-input"
+              data-test="input-haircolor-page"
+              aria-label="Color de pelo"
+              formControlName="hairColor"
+            />
+          </closet-field>
+        </div>
+      </section>
+
+      <!-- Medidas -->
+      <section class="panel-card">
+        <h2 class="section-title">Medidas (cm)</h2>
+        <p class="section-hint">Rellena sólo las que te apetezca; se guardan en centímetros.</p>
+
+        <div class="grid-fields">
+          @for (key of measurementKeys; track key) {
+            <closet-field [label]="measurementLabels[key]" [controlId]="'profile-' + key">
+              <input
+                [id]="'profile-' + key"
+                type="number"
+                inputmode="numeric"
+                class="field-input"
+                [attr.data-test]="'input-' + key + '-page'"
+                [attr.aria-label]="measurementLabels[key]"
+                [formControlName]="key"
+              />
+            </closet-field>
+          }
+        </div>
+      </section>
+
+      <!-- Lo que evitas -->
+      <section class="panel-card">
+        <h2 class="section-title">Lo que prefieres evitar</h2>
+        <p class="section-hint">
+          Los colores que apuntes aquí sí son una exclusión: el motor no los propondrá.
+        </p>
+
+        <div class="field mb-4">
+          <span class="uplabel">Colores que evitas</span>
+          <div class="flex flex-wrap items-center gap-2">
+            @for (color of avoidedColors(); track color) {
+              <span class="tag">
+                {{ color }}
+                <button
+                  type="button"
+                  class="tag-remove"
+                  [attr.aria-label]="'Quitar ' + color"
+                  [attr.data-test]="'action-removecolor-page'"
+                  (click)="removeAvoidedColor(color)"
+                >
+                  ×
+                </button>
+              </span>
+            }
+          </div>
+          <div class="mt-2 flex gap-2">
+            <input
+              id="profile-avoidedcolor"
+              type="text"
+              class="field-input flex-1"
+              data-test="input-avoidedcolor-page"
+              aria-label="Color que quieres evitar"
+              placeholder="Ej. naranja neón"
+              [value]="newAvoidedColor()"
+              (input)="onAvoidedColorInput($event)"
+              (keydown.enter)="$event.preventDefault(); addAvoidedColor()"
+            />
+            <button
+              type="button"
+              class="pill"
+              data-test="action-addcolor-page"
+              (click)="addAvoidedColor()"
+            >
+              Añadir
+            </button>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="uplabel">Tipos de prenda que no quieres ver</span>
+          @if (avoidedTypeOptions().length > 0) {
+            <div class="scroll-box">
+              <closet-chip-group
+                label="Tipos de prenda evitados"
+                dataTest="action-avoidedtype-page"
+                [options]="avoidedTypeOptions()"
+                [selected]="avoidedGarmentTypeIds()"
+                (changed)="setAvoidedTypes($event)"
+              />
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Contexto -->
+      <section class="panel-card">
+        <h2 class="section-title">Dónde vives y cuánto quieres gastar</h2>
+        <p class="section-hint">
+          Sirve para el clima de los looks y, más adelante, para filtrar marcas de referencia.
+        </p>
+
+        <div class="grid-fields">
+          <closet-field label="Ciudad" controlId="profile-city">
+            <input
+              id="profile-city"
+              type="text"
+              class="field-input"
+              data-test="input-city-page"
+              aria-label="Ciudad"
+              formControlName="city"
+            />
+          </closet-field>
+
+          <closet-field label="País" controlId="profile-country">
+            <input
+              id="profile-country"
+              type="text"
+              class="field-input"
+              data-test="input-country-page"
+              placeholder="Ej. Colombia"
+              aria-label="País"
+              formControlName="country"
+            />
+          </closet-field>
+
+          <closet-field label="Moneda (ISO)" controlId="profile-currency">
+            <input
+              id="profile-currency"
+              type="text"
+              maxlength="3"
+              class="field-input"
+              data-test="input-currency-page"
+              placeholder="COP"
+              aria-label="Moneda (ISO)"
+              formControlName="currency"
+            />
+          </closet-field>
+
+          <label for="profile-climate" class="sr-only">Clima habitual</label>
+          <closet-field label="Clima habitual" controlId="profile-climate">
+            <select
+              id="profile-climate"
+              class="field-select"
+              data-test="select-climate-page"
+              formControlName="climate"
+            >
+              <option value="">Sin especificar</option>
+              @for (option of climateOptions; track option) {
+                <option [value]="option">{{ labels.climate[option] }}</option>
+              }
+            </select>
+          </closet-field>
+
+          <label for="profile-budget" class="sr-only">Presupuesto</label>
+          <closet-field label="Presupuesto" controlId="profile-budget">
+            <select
+              id="profile-budget"
+              class="field-select"
+              data-test="select-budget-page"
+              formControlName="budgetTier"
+            >
+              <option value="">Sin especificar</option>
+              @for (option of budgetTierOptions; track option) {
+                <option [value]="option">{{ labels.budgetTier[option] }}</option>
+              }
+            </select>
+          </closet-field>
+        </div>
+
+        <closet-field label="Notas para el estilista" controlId="profile-notes" class="mt-4 block">
+          <textarea
+            id="profile-notes"
+            class="field-textarea"
+            data-test="input-notes-page"
+            placeholder="Cualquier cosa que quieras que se tenga en cuenta"
+            aria-label="Notas para el estilista"
+            formControlName="notes"
+          ></textarea>
+        </closet-field>
+      </section>
+
+      <closet-error-banner [message]="saveError()" />
+
+      <div class="save-bar">
+        <closet-submit-button
+          label="Guardar perfil"
+          loadingLabel="Guardando…"
+          dataTest="action-save-page"
+          [loading]="saving()"
+          [icon]="iconSave"
+        />
+      </div>
+    </form>
+  }
+</div>

@@ -1,0 +1,20 @@
+{
+  "extends": "../config/tsconfig-base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "5.0",
+    "target": "ES2022",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "isolatedModules": false
+  },
+  "include": ["src/**/*"],
+  // Los tests no se publican en dist/: el paquete que consumen las apps sólo
+  // lleva esquemas y tipos.
+  "exclude": ["src/**/*.spec.ts"]
+}

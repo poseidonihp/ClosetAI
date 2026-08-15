@@ -1,0 +1,71 @@
+<div class="flex min-h-dvh items-center justify-center px-4 py-8">
+  <div class="panel w-full max-w-md rounded-xl px-7 pb-7 pt-8" data-test="div-register-page">
+    <closet-brand-mark />
+    <p class="mb-7 mt-4 text-[13px]" style="color: var(--qp-mute)">
+      Crea tu cuenta para empezar a cargar tu clóset.
+    </p>
+
+    <form [formGroup]="form" class="flex flex-col gap-4" (ngSubmit)="submit()">
+      <closet-field label="Nombre" controlId="register-name">
+        <input
+          id="register-name"
+          type="text"
+          class="field-input"
+          data-test="input-name-page"
+          autocomplete="name"
+          aria-label="Nombre"
+          formControlName="displayName"
+        />
+      </closet-field>
+
+      <closet-field label="Email" controlId="register-email">
+        <input
+          id="register-email"
+          type="email"
+          class="field-input"
+          data-test="input-email-page"
+          autocomplete="username"
+          aria-label="Email"
+          formControlName="email"
+        />
+      </closet-field>
+
+      <closet-field
+        label="Password"
+        controlId="register-password"
+        [error]="
+          form.controls.password.touched && form.controls.password.invalid
+            ? 'Mínimo ' + passwordMinLength + ' caracteres'
+            : null
+        "
+      >
+        <input
+          id="register-password"
+          type="password"
+          class="field-input"
+          data-test="input-password-page"
+          autocomplete="new-password"
+          aria-label="Password"
+          formControlName="password"
+        />
+      </closet-field>
+
+      <closet-error-banner [message]="errorMessage()" />
+
+      <closet-submit-button
+        label="Crear cuenta"
+        loadingLabel="Creando…"
+        dataTest="action-register-page"
+        extraClass="mt-2 justify-center"
+        [loading]="submitting()"
+        [disabled]="form.invalid"
+        [icon]="iconRegister"
+      />
+    </form>
+
+    <p class="mt-6 text-center text-[12px]" style="color: var(--qp-mute)">
+      ¿Ya tienes cuenta?
+      <a routerLink="/login" class="underline" data-test="action-login-page">Entra</a>
+    </p>
+  </div>
+</div>
