@@ -8,16 +8,19 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { Throttle, seconds } from '@nestjs/throttler';
 import {
   GenerateOutfitsRequestSchema,
   OutfitFeedbackRequestSchema,
+  OutfitQuerySchema,
   type AuthenticatedUser,
   type GenerateOutfitsRequest,
   type GenerateOutfitsResponse,
   type Outfit,
   type OutfitFeedbackRequest,
+  type OutfitQuery,
 } from '@closetai/shared-types';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -42,13 +45,18 @@ export class OutfitsController {
   constructor(private readonly _outfits: OutfitsService) {}
 
   /**
-   * Lista los looks que el usuario ya tiene guardados.
+   * Lista los looks que el usuario ya tiene guardados, del más reciente al más
+   * antiguo. Con `favorite=true` devuelve sólo los que marcó como guardados.
    * @param {AuthenticatedUser} user - Usuario autenticado.
+   * @param {OutfitQuery} query - Filtro del listado.
    * @returns {Promise<Outfit[]>}
    */
   @Get()
-  list(@CurrentUser() user: AuthenticatedUser): Promise<Outfit[]> {
-    return this._outfits.list(user.id);
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query(new ZodValidationPipe(OutfitQuerySchema)) query: OutfitQuery,
+  ): Promise<Outfit[]> {
+    return this._outfits.list(user.id, query);
   }
 
   /**

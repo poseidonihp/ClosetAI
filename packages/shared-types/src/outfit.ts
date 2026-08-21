@@ -5,6 +5,7 @@ import {
   OutfitRejectedReasonEnum,
   OutfitSourceEnum,
 } from './enums';
+import { OutfitRenderSchema } from './render';
 import {
   GenerateLooksRequestSchema,
   LookDiagnosticsSchema,
@@ -91,6 +92,11 @@ export const OutfitSchema = LookSchema.extend({
    */
   isStale: z.boolean(),
   isFavorite: z.boolean(),
+  /**
+   * Renders visuales del look, del más reciente al más antiguo. Van con el look y
+   * no en una consulta aparte porque la ficha los enseña donde están las fotos.
+   */
+  renders: z.array(OutfitRenderSchema),
   /** 1–5, o null si el usuario no lo ha valorado. */
   rating: z.number().int().nullable(),
   rejectedReason: OutfitRejectedReasonEnum.nullable(),
@@ -102,13 +108,25 @@ export const OutfitSchema = LookSchema.extend({
 });
 export type Outfit = z.infer<typeof OutfitSchema>;
 
+/**
+ * Filtro del listado de looks. `favorite` llega como texto en la query, así que se
+ * compara contra las dos cadenas: `z.coerce.boolean()` convertiría `'false'` en
+ * `true` y el filtro haría justo lo contrario de lo que pide la URL.
+ */
+export const OutfitQuerySchema = z.object({
+  favorite: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional()
+    .transform(value => (value === undefined ? undefined : value === 'true')),
+});
+export type OutfitQuery = z.infer<typeof OutfitQuerySchema>;
+
 export const GenerateOutfitsResponseSchema = z.object({
   outfits: z.array(OutfitSchema),
   diagnostics: LookDiagnosticsSchema,
   engineVersion: z.string(),
   promptVersion: z.string(),
   model: z.string(),
-  /** Costo real de esta llamada en USD, calculado desde el consumo que devolvió la API. */
   costUsd: z.number(),
   /**
    * Lo que el modelo propuso y el servidor no aceptó, con el motivo. Se devuelve
@@ -118,6 +136,17 @@ export const GenerateOutfitsResponseSchema = z.object({
   discarded: z.array(z.string()),
 });
 export type GenerateOutfitsResponse = z.infer<typeof GenerateOutfitsResponseSchema>;
+
+/**
+ * Respuesta del render: el look ya con su imagen nueva y lo que costó.
+ */
+export const RenderOutfitResponseSchema = z.object({
+  outfit: OutfitSchema,
+  render: OutfitRenderSchema,
+  /** Costo real de esta llamada en USD, calculado desde el consumo de la API. */
+  costUsd: z.number(),
+});
+export type RenderOutfitResponse = z.infer<typeof RenderOutfitResponseSchema>;
 
 /**
  * Un evento de feedback sobre un look. `value` sólo lo mira `FAVORITE`, que se

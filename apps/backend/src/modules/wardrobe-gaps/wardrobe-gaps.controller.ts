@@ -32,7 +32,6 @@ const analysisRequestsPerWindow = 4;
 
 @Controller('wardrobe-gaps')
 export class WardrobeGapsController {
-
   /**
    * Inicializa el controlador de vacíos del clóset.
    * @constructor

@@ -9,6 +9,7 @@ import {
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
   LucideAngularModule,
+  Bookmark,
   LogOut,
   Menu,
   Moon,
@@ -70,10 +71,11 @@ export class AppShellComponent {
     return (user.displayName || user.email).charAt(0).toUpperCase();
   });
 
-  /** Los cuatro destinos del producto; en móvil son la navegación inferior. */
+  /** Los destinos del producto; en móvil son la navegación inferior. */
   protected readonly nav: readonly INavItem[] = [
     { label: 'Clóset', route: '/closet', icon: Shirt },
     { label: 'Looks', route: '/looks', icon: Sparkles },
+    { label: 'Guardados', route: '/guardados', icon: Bookmark },
     { label: 'Comprar', route: '/comprar', icon: ShoppingBag },
     { label: 'Perfil', route: '/perfil', icon: UserRound },
   ];

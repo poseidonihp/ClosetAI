@@ -86,7 +86,7 @@
     grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
     align-items: start;
   }
-  .look-gallery {
+  .look-visuals {
     border-right: 1px solid var(--qp-line);
     border-bottom: 0;
     position: sticky;
@@ -94,12 +94,15 @@
   }
 }
 
+.look-visuals {
+  border-bottom: 1px solid var(--qp-line);
+}
+
 .look-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 8px;
   padding: 14px;
-  border-bottom: 1px solid var(--qp-line);
 }
 
 .look-photo {
@@ -368,4 +371,80 @@
 .reject-row .field-select {
   flex: 1;
   min-width: 190px;
+}
+
+// -- Render de IA ----------------------------------------------------------
+
+.render-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 0;
+}
+
+.render-figure {
+  margin: 0;
+  border: 1px solid var(--qp-line-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--qp-bg-active);
+}
+
+.render-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.render-open img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.render-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  border-top: 1px solid var(--qp-line);
+}
+
+.render-tag {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+
+.render-remove {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 10.5px;
+  color: var(--qp-mute);
+  cursor: pointer;
+}
+.render-remove:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.render-action {
+  align-self: flex-start;
+}
+.render-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.render-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--qp-mute);
 }

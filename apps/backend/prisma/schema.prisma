@@ -108,11 +108,12 @@ model AiJob {
   createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   usage          AiUsageLog[]
-  taggedGarments Garment[]     @relation("GarmentTaggingJob")
-  outfits        Outfit[]      @relation("OutfitStylingJob")
-  wardrobeGaps   WardrobeGap[] @relation("WardrobeGapAnalysisJob")
+  taggedGarments Garment[]      @relation("GarmentTaggingJob")
+  outfits        Outfit[]       @relation("OutfitStylingJob")
+  wardrobeGaps   WardrobeGap[]  @relation("WardrobeGapAnalysisJob")
+  outfitRenders  OutfitRender[] @relation("OutfitRenderJob")
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
@@ -341,6 +342,12 @@ enum OutfitRejectedReason {
   GARMENT_UNAVAILABLE
 }
 
+/// Qué representa el render de un look. Hoy sólo hay una forma —una figura
+/// vistiendo el conjunto— y el enum existe para poder añadir otras sin migrar.
+enum OutfitRenderKind {
+  AI_MODEL
+}
+
 /// Estado de una brecha del clóset. `DISMISSED` no sólo la oculta: el siguiente
 /// análisis no vuelve a proponer lo que el usuario ya descartó.
 enum WardrobeGapStatus {
@@ -556,6 +563,7 @@ model Outfit {
   job      AiJob?           @relation("OutfitStylingJob", fields: [jobId], references: [id], onDelete: SetNull)
   items    OutfitItem[]
   feedback OutfitFeedback[]
+  renders  OutfitRender[]
 
   @@index([userId, createdAt])
   @@index([userId, isFavorite])
@@ -605,6 +613,49 @@ model OutfitFeedback {
   @@index([outfitId])
   @@index([userId, createdAt])
   @@map("outfit_feedback")
+}
+
+/// Render visual de un look (Fase 6).
+///
+/// Es **aspiracional**: el modelo de imagen puede alterar el color, la textura, un
+/// logo o el corte, así que la ficha con las fotos reales sigue siendo la fuente
+/// de verdad del look y el render se suma a ella, nunca la sustituye.
+///
+/// Hay varios renders por look a propósito. A diferencia de la lista de la compra
+/// —donde repetir el análisis sobre el mismo clóset daría lo mismo— pedir otro
+/// render del mismo look devuelve otra imagen, que es exactamente lo que alguien
+/// quiere al volver a pulsar; por eso cada pulsación confirmada es una fila nueva.
+///
+/// `quality`, `size` y `promptUsed` se guardan para poder comparar dos ajustes
+/// sobre el mismo look; el DTO no los expone porque la ficha sólo necesita decir
+/// que la imagen la generó una IA y con qué modelo.
+model OutfitRender {
+  id            String           @id @default(uuid()) @db.Uuid
+  outfitId      String           @map("outfit_id") @db.Uuid
+  kind          OutfitRenderKind @default(AI_MODEL)
+  /// Key privada en storage, con forma `userId/outfitId/<archivo>`.
+  imageKey      String           @map("image_key")
+  mimeType      String           @map("mime_type")
+  byteSize      Int              @map("byte_size")
+  width         Int
+  height        Int
+  modelUsed     String           @map("model_used")
+  quality       String
+  size          String
+  promptVersion String           @map("prompt_version")
+  /// Prompt exacto que describió las prendas. Es lo único que permite saber por
+  /// qué un render salió como salió cuando el modelo no es reproducible.
+  promptUsed    String           @map("prompt_used")
+  /// Job que pagó este render. Da modelo, costo e intentos a la UI.
+  jobId         String?          @map("job_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  outfit Outfit @relation(fields: [outfitId], references: [id], onDelete: Cascade)
+  job    AiJob? @relation("OutfitRenderJob", fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([outfitId])
+  @@index([jobId])
+  @@map("outfit_renders")
 }
 
 // =====================================================================

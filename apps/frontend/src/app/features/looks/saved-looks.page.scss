@@ -1,0 +1,13 @@
+.saved-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.skeleton-card {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--qp-line);
+  border-radius: 14px;
+  background: var(--qp-bg-soft);
+}

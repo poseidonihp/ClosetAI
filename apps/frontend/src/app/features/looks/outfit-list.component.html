@@ -1,0 +1,19 @@
+<div class="look-list" data-test="div-outfitlist-page">
+  @for (outfit of outfits(); track outfit.id; let index = $index) {
+    <closet-look-card
+      [look]="outfit"
+      [outfit]="outfit"
+      [index]="index"
+      [heightCm]="heightCm()"
+      [busy]="isPending(outfit)"
+      [renderPending]="isRendering(outfit)"
+      (favoriteToggled)="toggleFavorite(outfit, $event)"
+      (wornMarked)="markWorn(outfit)"
+      (rated)="rate(outfit, $event)"
+      (rejected)="reject(outfit, $event)"
+      (deleted)="removeOutfit(outfit)"
+      (renderRequested)="renderOutfit(outfit)"
+      (renderDeleted)="removeRender(outfit, $event)"
+    />
+  }
+</div>

@@ -5,10 +5,12 @@ import OpenAI, {
   APIError,
   APIUserAbortError,
   RateLimitError,
+  toFile,
 } from 'openai';
+import type { ImagesResponse } from 'openai/resources/images';
 import type { Response as OpenAiResponse } from 'openai/resources/responses/responses';
 import type { Env } from '../../config/env.validation';
-import type { ITokenUsage } from './openai-pricing';
+import type { IImageTokenUsage, ITokenUsage } from './openai-pricing';
 
 /**
  * Adaptador del proveedor de IA.
@@ -32,12 +34,14 @@ export class AiProviderError extends Error {
    * @param {string} message - Mensaje en español para el usuario.
    * @param {boolean} retryable - Si tiene sentido volver a intentarlo.
    * @param {string | null} [providerRequestId=null] - Identificador de la petición.
+   * @param {string | null} [detail=null] - Motivo técnico, sólo para el log.
    */
   constructor(
     readonly code: AiErrorCode,
     message: string,
     readonly retryable: boolean,
     readonly providerRequestId: string | null = null,
+    readonly detail: string | null = null,
   ) {
     super(message);
     this.name = 'AiProviderError';
@@ -64,6 +68,37 @@ export interface IStructuredRequest {
   maxOutputTokens: number;
 }
 
+/** Una foto real de una prenda, tal como viaja al modelo de imagen. */
+export interface IImageSource {
+  buffer: Buffer;
+  mimeType: string;
+  filename: string;
+}
+
+export interface IImageEditRequest {
+  model: string;
+  /** Prompt que describe las prendas y la escena. Lo construye el módulo de dominio. */
+  prompt: string;
+  /** Fotos de las prendas del look, en el orden en que se citan en el prompt. */
+  images: readonly IImageSource[];
+  size: string;
+  quality: 'low' | 'medium' | 'high';
+  /** Cuánto respeta el modelo las fotos de entrada. Se omite si el modelo no lo acepta. */
+  inputFidelity: 'low' | 'high';
+  /** Compresión del WebP de salida, 1–100. */
+  outputCompression: number;
+}
+
+export interface IImageEditResponse {
+  /** Imagen generada en base64. El proveedor no devuelve URL para estos modelos. */
+  base64: string;
+  mimeType: string;
+  usage: IImageTokenUsage;
+  imageCount: number;
+  latencyMs: number;
+  providerRequestId: string | null;
+}
+
 export interface IStructuredResponse {
   /** Texto JSON devuelto por el modelo, todavía sin validar contra Zod. */
   rawText: string;
@@ -74,7 +109,7 @@ export interface IStructuredResponse {
 }
 
 const notConfiguredMessage =
-  'El etiquetado por IA no está disponible: falta configurar OPENAI_API_KEY en el servidor.';
+  'Las funciones de IA no están disponibles: falta configurar OPENAI_API_KEY en el servidor.';
 const timeoutMessage = 'El proveedor de IA tardó demasiado en responder. Puedes reintentarlo.';
 const rateLimitMessage = 'El proveedor de IA está saturado ahora mismo. Reinténtalo en un minuto.';
 const providerMessage = 'El proveedor de IA devolvió un error. Puedes reintentarlo.';
@@ -82,15 +117,43 @@ const refusalMessage = 'El modelo se negó a analizar esta imagen.';
 const incompleteMessage =
   'La respuesta del modelo se cortó antes de terminar. Reintenta o sube una foto más simple.';
 const emptyOutputMessage = 'El modelo no devolvió ninguna respuesta utilizable.';
+const moderationMessage =
+  'El proveedor rechazó generar la imagen por su política de contenido. La ficha del look sigue intacta.';
+const emptyImageMessage = 'El proveedor no devolvió ninguna imagen.';
+
+/** Formato en el que se pide la imagen. WebP es el formato de todo el storage. */
+const imageOutputFormat = 'webp';
+const imageOutputMimeType = 'image/webp';
+/** Código con el que el proveedor marca un rechazo por política de contenido. */
+const moderationErrorCode = 'moderation_blocked';
 
 /** Códigos HTTP a partir de los cuales el fallo es del servidor y conviene reintentar. */
 const firstServerErrorStatus = 500;
+
+/**
+ * Modelos que aceptan `input_fidelity`. Es una lista de lo permitido y no de lo
+ * prohibido: omitir el parámetro sólo cuesta fidelidad, mientras que mandárselo a
+ * un modelo que no lo acepta tumba la llamada con un 400. `gpt-image-2` está fuera
+ * porque procesa toda entrada en alta fidelidad y rechaza el parámetro.
+ */
+const modelsWithInputFidelity: ReadonlySet<string> = new Set(['gpt-image-1', 'gpt-image-1.5']);
+
+/**
+ * Indica si el modelo acepta `input_fidelity`. Va atado al id del modelo y no al
+ * entorno, por el mismo motivo que los precios: es una propiedad del modelo.
+ * @param {string} model - Identificador del modelo de imagen.
+ * @returns {boolean}
+ */
+export function supportsInputFidelity(model: string): boolean {
+  return modelsWithInputFidelity.has(model);
+}
 
 @Injectable()
 export class OpenAiClient {
   private readonly _logger = new Logger(OpenAiClient.name);
   private readonly _client: OpenAI | null;
   private readonly _timeoutMs: number;
+  private readonly _imageTimeoutMs: number;
 
   /**
    * Crea el cliente si hay clave configurada. Sin clave el backend arranca
@@ -102,6 +165,7 @@ export class OpenAiClient {
     const apiKey = this._config.get('OPENAI_API_KEY', { infer: true });
     const baseURL = this._config.get('OPENAI_BASE_URL', { infer: true });
     this._timeoutMs = this._config.get('AI_REQUEST_TIMEOUT_MS', { infer: true });
+    this._imageTimeoutMs = this._config.get('AI_IMAGE_REQUEST_TIMEOUT_MS', { infer: true });
     this._client = apiKey
       ? new OpenAI({
           apiKey,
@@ -165,7 +229,7 @@ export class OpenAiClient {
         },
       });
     } catch (error) {
-      throw OpenAiClient._toProviderError(error);
+      throw this._toProviderError(error);
     }
 
     const providerRequestId = response.id || null;
@@ -177,6 +241,66 @@ export class OpenAiClient {
       imageCount: request.images.length,
       latencyMs: Date.now() - startedAt,
       providerRequestId,
+    };
+  }
+
+  /**
+   * Genera una imagen a partir de las fotos que se le pasan. Devuelve el binario
+   * en base64 y el consumo: guardar la imagen y validarla es cosa de quien la pidió.
+   * @param {IImageEditRequest} request - Modelo, prompt, fotos y ajustes de salida.
+   * @returns {Promise<IImageEditResponse>}
+   */
+  async editImage(request: IImageEditRequest): Promise<IImageEditResponse> {
+    const client = this._client;
+    if (!client) {
+      throw new AiProviderError('not-configured', notConfiguredMessage, false);
+    }
+
+    const startedAt = Date.now();
+    const files = await Promise.all(
+      request.images.map(image => toFile(image.buffer, image.filename, { type: image.mimeType })),
+    );
+
+    let response: ImagesResponse;
+    let providerRequestId: string | null;
+    try {
+      const raw = await client.images
+        .edit(
+          {
+            model: request.model,
+            image: files,
+            prompt: request.prompt,
+            size: request.size,
+            quality: request.quality,
+            ...(supportsInputFidelity(request.model)
+              ? { input_fidelity: request.inputFidelity }
+              : {}),
+            output_format: imageOutputFormat,
+            output_compression: request.outputCompression,
+            n: 1,
+            stream: false,
+          },
+          { timeout: this._imageTimeoutMs },
+        )
+        .withResponse();
+      response = raw.data;
+      providerRequestId = raw.request_id;
+    } catch (error) {
+      throw this._toProviderError(error);
+    }
+
+    const base64 = response.data?.[0]?.b64_json;
+    if (!base64) {
+      throw new AiProviderError('invalid-output', emptyImageMessage, true, providerRequestId);
+    }
+
+    return {
+      base64,
+      providerRequestId,
+      mimeType: imageOutputMimeType,
+      usage: OpenAiClient._toImageUsage(response),
+      imageCount: request.images.length,
+      latencyMs: Date.now() - startedAt,
     };
   }
 
@@ -239,26 +363,113 @@ export class OpenAiClient {
   }
 
   /**
-   * Clasifica el error del SDK para decidir si el job puede reintentarse.
+   * Normaliza el consumo de una generación de imagen. Un proveedor que no lo
+   * reporte deja el costo en cero y la reserva del job es lo que acota el gasto.
+   * @private
+   * @param {ImagesResponse} response - Respuesta del proveedor.
+   * @returns {IImageTokenUsage}
+   */
+  private static _toImageUsage(response: ImagesResponse): IImageTokenUsage {
+    return {
+      inputTextTokens: response.usage?.input_tokens_details?.text_tokens ?? 0,
+      inputImageTokens: response.usage?.input_tokens_details?.image_tokens ?? 0,
+      outputImageTokens: response.usage?.output_tokens ?? 0,
+    };
+  }
+
+  /**
+   * Clasifica el error y deja en el log el motivo técnico. El mensaje que ve el
+   * usuario es genérico a propósito, así que sin esta línea un fallo del
+   * proveedor no se puede diagnosticar.
    * @private
    * @param {unknown} error - Error lanzado por el cliente.
    * @returns {AiProviderError}
    */
-  private static _toProviderError(error: unknown): AiProviderError {
+  private _toProviderError(error: unknown): AiProviderError {
+    const providerError = OpenAiClient._classify(error);
+    this._logger.error(
+      `OpenAiClient > _toProviderError - llamada rechazada por el proveedor (${providerError.code})`,
+      providerError.detail ?? providerError.message,
+    );
+    return providerError;
+  }
+
+  /**
+   * Traduce el error del SDK al código de dominio y decide si se reintenta.
+   * @private
+   * @param {unknown} error - Error lanzado por el cliente.
+   * @returns {AiProviderError}
+   */
+  private static _classify(error: unknown): AiProviderError {
     if (error instanceof AiProviderError) {
       return error;
     }
     if (error instanceof APIConnectionTimeoutError || error instanceof APIUserAbortError) {
-      return new AiProviderError('timeout', timeoutMessage, true);
+      return new AiProviderError(
+        'timeout',
+        timeoutMessage,
+        true,
+        null,
+        OpenAiClient._detail(error),
+      );
     }
     if (error instanceof RateLimitError) {
-      return new AiProviderError('rate-limited', rateLimitMessage, true, error.requestID ?? null);
+      return new AiProviderError(
+        'rate-limited',
+        rateLimitMessage,
+        true,
+        error.requestID ?? null,
+        OpenAiClient._detail(error),
+      );
     }
     if (error instanceof APIError) {
+      if (error.code === moderationErrorCode) {
+        return new AiProviderError(
+          'refusal',
+          moderationMessage,
+          false,
+          error.requestID ?? null,
+          OpenAiClient._detail(error),
+        );
+      }
       const status = error.status ?? 0;
       const retryable = status === 0 || status >= firstServerErrorStatus;
-      return new AiProviderError('provider', providerMessage, retryable, error.requestID ?? null);
+      return new AiProviderError(
+        'provider',
+        providerMessage,
+        retryable,
+        error.requestID ?? null,
+        OpenAiClient._detail(error),
+      );
     }
-    return new AiProviderError('provider', providerMessage, true);
+    return new AiProviderError(
+      'provider',
+      providerMessage,
+      true,
+      null,
+      OpenAiClient._detail(error),
+    );
+  }
+
+  /**
+   * Motivo técnico del fallo, con el estado y el identificador que pide el
+   * proveedor para rastrear la petición.
+   * @private
+   * @param {unknown} error - Error lanzado por el cliente.
+   * @returns {string}
+   */
+  private static _detail(error: unknown): string {
+    if (!(error instanceof APIError)) {
+      return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    }
+    const parts = [
+      `HTTP ${error.status ?? 'sin respuesta'}`,
+      `tipo ${error.type ?? 'desconocido'}`,
+      `código ${error.code ?? 'ninguno'}`,
+      `param ${error.param ?? 'ninguno'}`,
+      `requestId ${error.requestID ?? 'ninguno'}`,
+      error.message,
+    ];
+    return parts.join(' · ');
   }
 }

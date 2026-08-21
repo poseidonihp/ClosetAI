@@ -41,27 +41,94 @@
   </header>
 
   <div class="look-body">
-    <!-- Fotos reales de las prendas -->
-    <div class="look-gallery">
-      @for (item of look().items; track item.garmentId) {
-        @if (item.thumbUrl; as thumb) {
+    <div class="look-visuals">
+      @if (outfit(); as saved) {
+        <!-- Render de IA: aspiracional, nunca la fuente de verdad del look -->
+        <section class="render-block" data-test="div-render-page">
+          @for (render of renders(); track render.id; let renderIndex = $index) {
+            <figure class="render-figure">
+              <button
+                type="button"
+                class="render-open"
+                data-test="action-viewrender-page"
+                [attr.aria-label]="'Ver el visual generado ' + (renderIndex + 1)"
+                (click)="openRenderViewer(renderIndex)"
+              >
+                <img
+                  [src]="render.url"
+                  [width]="render.width"
+                  [height]="render.height"
+                  alt="Visual del look generado por IA"
+                  loading="lazy"
+                />
+              </button>
+              <figcaption class="render-caption">
+                <span class="render-tag">Generado por IA · {{ render.modelUsed }}</span>
+                <button
+                  type="button"
+                  class="render-remove"
+                  data-test="action-deleterender-page"
+                  [disabled]="busy() || renderPending()"
+                  (click)="renderDeleted.emit(render.id)"
+                >
+                  Borrar
+                </button>
+              </figcaption>
+            </figure>
+          }
+
           <button
             type="button"
-            class="look-photo"
-            data-test="action-viewphoto-page"
-            [attr.aria-label]="'Ver ' + item.name"
-            (click)="openViewer(item)"
+            class="pill render-action"
+            data-test="action-render-page"
+            [disabled]="busy() || renderPending() || saved.isStale"
+            (click)="renderRequested.emit()"
           >
-            <img [src]="thumb" [alt]="item.name" loading="lazy" />
+            @if (renderPending()) {
+              Generando visual…
+            } @else if (renders().length > 0) {
+              Generar otro visual
+            } @else {
+              Generar visual con IA
+            }
           </button>
-        } @else {
-          <span
-            class="look-photo look-photo-empty"
-            [style.background]="item.colorHex"
-            [title]="item.name + ' (sin foto)'"
-          ></span>
-        }
+
+          <p class="render-hint">
+            @if (saved.isStale) {
+              Falta alguna prenda del look en el clóset, así que no hay con qué renderizarlo.
+            } @else if (renders().length > 0) {
+              El visual es una aproximación: puede cambiar colores, texturas y logos. Las fotos de
+              tus prendas son la referencia real.
+            } @else {
+              Genera una imagen del conjunto puesto a partir de las fotos de tus prendas. Cuesta
+              dinero y se confirma antes.
+            }
+          </p>
+        </section>
       }
+
+      <!-- Fotos reales de las prendas -->
+      <div class="look-gallery">
+        @for (item of look().items; track item.garmentId) {
+          @if (item.thumbUrl; as thumb) {
+            <button
+              type="button"
+              class="look-photo"
+              data-test="action-viewphoto-page"
+              [attr.aria-label]="'Ver ' + item.name"
+              (click)="openViewer(item)"
+            >
+              <img [src]="thumb" [alt]="item.name" loading="lazy" />
+            </button>
+          } @else {
+            <span
+              class="look-photo look-photo-empty"
+              [style.background]="item.colorHex"
+              [title]="item.name + ' (sin foto)'"
+            ></span>
+          }
+        }
+      </div>
     </div>
 
     <!-- Ficha -->
@@ -277,10 +344,6 @@
   }
 </article>
 
-@if (viewerIndex() !== null && hasPhotos()) {
-  <closet-image-viewer
-    [images]="photos()"
-    [startIndex]="viewerIndex() ?? 0"
-    (dismissed)="closeViewer()"
-  />
+@if (viewerImages(); as images) {
+  <closet-image-viewer [images]="images" [startIndex]="viewerIndex()" (dismissed)="closeViewer()" />
 }

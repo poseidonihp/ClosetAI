@@ -28,6 +28,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/looks/looks.page').then(m => m.LooksPage),
       },
       {
+        path: 'guardados',
+        loadComponent: () =>
+          import('./features/looks/saved-looks.page').then(m => m.SavedLooksPage),
+      },
+      {
         path: 'comprar',
         loadComponent: () => import('./features/shopping/shopping.page').then(m => m.ShoppingPage),
       },

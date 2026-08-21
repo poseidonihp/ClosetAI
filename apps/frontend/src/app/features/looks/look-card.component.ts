@@ -18,12 +18,15 @@ import {
   type LookScoreLine,
   type Outfit,
   type OutfitRejectedReason,
+  type OutfitRender,
 } from '@closetai/shared-types';
 import { LayoutService } from '../../core/layout/layout.service';
 import { ImageViewerComponent, type IViewerImage } from '../../shared/ui/image-viewer.component';
 import { LookSectionComponent } from './look-section.component';
 
 const percentBase = 100;
+/** Texto alternativo del render. Dice qué es antes de que se vea qué es. */
+const renderViewerAlt = 'Visual del look generado por IA';
 
 /**
  * La ficha del look: el objetivo visual de [examplepng.png](../../../../../../examplepng.png),
@@ -52,12 +55,19 @@ export class LookCardComponent {
   readonly outfit = input<Outfit | null>(null);
   /** True mientras hay una acción en vuelo, para no mandar dos veces lo mismo. */
   readonly busy = input<boolean>(false);
+  /**
+   * True mientras se está generando el render. Va aparte de `busy` porque tarda
+   * mucho más que valorar un look y el botón tiene que decirlo.
+   */
+  readonly renderPending = input<boolean>(false);
 
   readonly favoriteToggled = output<boolean>();
   readonly wornMarked = output();
   readonly rated = output<number>();
   readonly rejected = output<OutfitRejectedReason>();
   readonly deleted = output();
+  readonly renderRequested = output();
+  readonly renderDeleted = output<string>();
 
   protected readonly labels = enumLabels;
   protected readonly formalityLabel = formalityLabel;
@@ -68,7 +78,8 @@ export class LookCardComponent {
     (_unused, offset) => minOutfitRating + offset,
   );
 
-  protected readonly viewerIndex = signal<number | null>(null);
+  protected readonly viewerImages = signal<IViewerImage[] | null>(null);
+  protected readonly viewerIndex = signal<number>(0);
   /** True cuando el usuario abrió el selector de motivo del rechazo. */
   protected readonly choosingReason = signal(false);
   protected readonly chosenReason = signal<OutfitRejectedReason>('COLOR');
@@ -86,7 +97,9 @@ export class LookCardComponent {
       .map(item => ({ url: item.url ?? '', alt: item.name })),
   );
 
-  protected readonly hasPhotos = computed(() => this.photos().length > 0);
+  /** Renders del look, del más reciente al más antiguo. Vacío en la ficha del motor. */
+  protected readonly renders = computed<OutfitRender[]>(() => this.outfit()?.renders ?? []);
+
   protected readonly heightHint = computed(() => {
     const height = this.heightCm();
     return height === null ? undefined : `Altura: ${height} cm`;
@@ -100,6 +113,19 @@ export class LookCardComponent {
   protected openViewer(item: LookItem): void {
     const position = this.photos().findIndex(photo => photo.alt === item.name);
     this.viewerIndex.set(Math.max(position, 0));
+    this.viewerImages.set(this.photos());
+  }
+
+  /**
+   * Abre el visor en un render concreto.
+   * @param {number} position - Posición del render en la lista.
+   * @returns {void}
+   */
+  protected openRenderViewer(position: number): void {
+    this.viewerIndex.set(position);
+    this.viewerImages.set(
+      this.renders().map(render => ({ url: render.url, alt: renderViewerAlt })),
+    );
   }
 
   /**
@@ -107,7 +133,7 @@ export class LookCardComponent {
    * @returns {void}
    */
   protected closeViewer(): void {
-    this.viewerIndex.set(null);
+    this.viewerImages.set(null);
   }
 
   /**

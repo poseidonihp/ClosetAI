@@ -253,6 +253,14 @@ export const OutfitRejectedReasonEnum = z.enum([
 ]);
 export type OutfitRejectedReason = z.infer<typeof OutfitRejectedReasonEnum>;
 /**
+ * Qué representa el render de un look. Hoy sólo hay una forma —una figura
+ * vistiendo el conjunto— y el enum existe para poder añadir otras (flat-lay,
+ * maniquí) sin migrar la columna.
+ */
+export const OutfitRenderKindEnum = z.enum(['AI_MODEL']);
+export type OutfitRenderKind = z.infer<typeof OutfitRenderKindEnum>;
+
+/**
  * En qué punto está una brecha del clóset. `DISMISSED` no es sólo una forma de
  * ocultarla: el siguiente análisis no vuelve a proponer lo que el usuario ya
  * descartó, así que la decisión se conserva aunque la brecha desaparezca.
@@ -459,6 +467,9 @@ export const enumLabels = {
     NOT_MY_STYLE: 'No es mi estilo',
     GARMENT_UNAVAILABLE: 'Una prenda no está disponible',
   } satisfies Record<OutfitRejectedReason, string>,
+  outfitRenderKind: {
+    AI_MODEL: 'Figura generada por IA',
+  } satisfies Record<OutfitRenderKind, string>,
   wardrobeGapStatus: {
     OPEN: 'Pendiente',
     PURCHASED: 'Ya la compré',

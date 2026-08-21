@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { costUsdFromUsage, fallbackPricing, pricingFor } from './openai-pricing';
+import {
+  costUsdFromUsage,
+  fallbackImagePricing,
+  fallbackPricing,
+  imageCostUsdFromUsage,
+  imagePricingFor,
+  pricingFor,
+} from './openai-pricing';
 
 /**
  * El costo que se guarda en `AiJob` y en `AiUsageLog` sale de aquí, así que un
@@ -7,6 +14,7 @@ import { costUsdFromUsage, fallbackPricing, pricingFor } from './openai-pricing'
  */
 
 const knownModel = 'gpt-5.6-luna';
+const knownImageModel = 'gpt-image-2';
 const unknownModel = 'modelo-que-no-existe';
 
 describe('costUsdFromUsage', () => {
@@ -61,5 +69,62 @@ describe('costUsdFromUsage', () => {
     });
 
     expect(cost).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('imageCostUsdFromUsage', () => {
+  it('cobra el texto, las imágenes que entran y la que sale a su tarifa', () => {
+    const cost = imageCostUsdFromUsage(knownImageModel, {
+      inputTextTokens: 1_000_000,
+      inputImageTokens: 1_000_000,
+      outputImageTokens: 1_000_000,
+    });
+
+    expect(cost).toBeCloseTo(43, 6);
+  });
+
+  it('los tres componentes se cobran por separado y suman el total', () => {
+    const usage = { inputTextTokens: 900, inputImageTokens: 6400, outputImageTokens: 1584 };
+    const total = imageCostUsdFromUsage(knownImageModel, usage);
+    const parts = [
+      imageCostUsdFromUsage(knownImageModel, {
+        ...usage,
+        inputImageTokens: 0,
+        outputImageTokens: 0,
+      }),
+      imageCostUsdFromUsage(knownImageModel, {
+        ...usage,
+        inputTextTokens: 0,
+        outputImageTokens: 0,
+      }),
+      imageCostUsdFromUsage(knownImageModel, { ...usage, inputTextTokens: 0, inputImageTokens: 0 }),
+    ];
+
+    expect(total).toBeCloseTo(
+      parts.reduce((sum, part) => sum + part, 0),
+      10,
+    );
+    expect(parts.every(part => part > 0)).toBe(true);
+  });
+
+  it('un modelo de imagen desconocido se cobra a la tarifa más cara que conocemos', () => {
+    const cost = imageCostUsdFromUsage(unknownModel, {
+      inputTextTokens: 0,
+      inputImageTokens: 0,
+      outputImageTokens: 1_000_000,
+    });
+
+    expect(imagePricingFor(unknownModel)).toBeNull();
+    expect(cost).toBeCloseTo(fallbackImagePricing.outputImageUsdPerMTok, 6);
+  });
+
+  it('no cobra nada cuando el proveedor no reportó consumo', () => {
+    const cost = imageCostUsdFromUsage(knownImageModel, {
+      inputTextTokens: 0,
+      inputImageTokens: 0,
+      outputImageTokens: 0,
+    });
+
+    expect(cost).toBe(0);
   });
 });

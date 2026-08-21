@@ -102,22 +102,11 @@
 
       @if (stylistMode()) {
         @if (outfits().length > 0) {
-          <div class="look-list">
-            @for (outfit of outfits(); track outfit.id; let index = $index) {
-              <closet-look-card
-                [look]="outfit"
-                [outfit]="outfit"
-                [index]="index"
-                [heightCm]="heightCm()"
-                [busy]="isPending(outfit)"
-                (favoriteToggled)="toggleFavorite(outfit, $event)"
-                (wornMarked)="markWorn(outfit)"
-                (rated)="rate(outfit, $event)"
-                (rejected)="reject(outfit, $event)"
-                (deleted)="removeOutfit(outfit)"
-              />
-            }
-          </div>
+          <closet-outfit-list
+            [outfits]="outfits()"
+            [store]="outfitsStore"
+            [heightCm]="heightCm()"
+          />
         }
       } @else if (looks().length > 0) {
         <div class="look-list">

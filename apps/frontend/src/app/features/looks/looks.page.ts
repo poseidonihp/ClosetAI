@@ -8,15 +8,8 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Shirt, Sparkles } from 'lucide-angular';
-import {
-  enumLabels,
-  type GenerateOutfitsRequest,
-  type Outfit,
-  type OutfitFeedbackRequest,
-  type OutfitRejectedReason,
-} from '@closetai/shared-types';
+import { enumLabels, type GenerateOutfitsRequest } from '@closetai/shared-types';
 import { AiUsageStore } from '../../core/ai/ai-usage.store';
-import { ConfirmService } from '../../core/confirm/confirm.service';
 import { LayoutService } from '../../core/layout/layout.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { DialogComponent } from '../../shared/ui/dialog.component';
@@ -31,6 +24,7 @@ import {
   type ILookRequestSubmission,
 } from './look-request-form.component';
 import { LooksStore } from './looks.store';
+import { OutfitListComponent } from './outfit-list.component';
 import { OutfitsStore } from './outfits.store';
 
 const skeletonCards = 2;
@@ -51,6 +45,7 @@ const costFractionDigits = 4;
     ErrorBannerComponent,
     LookCardComponent,
     LookRequestFormComponent,
+    OutfitListComponent,
     SkeletonComponent,
   ],
   host: { style: 'display: flex; flex: 1; flex-direction: column' },
@@ -65,35 +60,33 @@ export class LooksPage implements OnInit {
 
   protected readonly layout = inject(LayoutService);
   protected readonly usage = inject(AiUsageStore);
+  /** Público porque la lista de fichas lo recibe como entrada. */
+  protected readonly outfitsStore = inject(OutfitsStore);
   private readonly _looks = inject(LooksStore);
-  private readonly _outfits = inject(OutfitsStore);
   private readonly _closet = inject(ClosetStore);
   private readonly _profile = inject(ProfileStore);
-  private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
 
   /** True mientras se muestre lo que devolvió el estilista y no el motor. */
   protected readonly stylistMode = signal(true);
   protected readonly panelOpen = signal(false);
-  /** Id del look sobre el que hay una acción en vuelo. */
-  protected readonly pendingOutfitId = signal<string | null>(null);
 
   protected readonly looks = this._looks.looks;
-  protected readonly outfits = this._outfits.outfits;
-  protected readonly discarded = this._outfits.discarded;
+  protected readonly outfits = this.outfitsStore.outfits;
+  protected readonly discarded = this.outfitsStore.discarded;
 
   protected readonly loading = computed(() =>
-    this.stylistMode() ? this._outfits.generating() : this._looks.loading(),
+    this.stylistMode() ? this.outfitsStore.generating() : this._looks.loading(),
   );
   protected readonly error = computed(() =>
-    this.stylistMode() ? this._outfits.error() : this._looks.error(),
+    this.stylistMode() ? this.outfitsStore.error() : this._looks.error(),
   );
   protected readonly diagnostics = computed(() =>
-    this.stylistMode() ? this._outfits.diagnostics() : this._looks.diagnostics(),
+    this.stylistMode() ? this.outfitsStore.diagnostics() : this._looks.diagnostics(),
   );
   /** True si hay fichas que enseñar en la capa que se está mostrando. */
   protected readonly hasResults = computed(() =>
-    this.stylistMode() ? this._outfits.outfits().length > 0 : this._looks.looks().length > 0,
+    this.stylistMode() ? this.outfitsStore.outfits().length > 0 : this._looks.looks().length > 0,
   );
 
   /**
@@ -102,7 +95,7 @@ export class LooksPage implements OnInit {
    * historial no se borra al recargar.
    */
   protected readonly generated = computed(() =>
-    this.stylistMode() ? this._outfits.outfits().length > 0 : this._looks.generated(),
+    this.stylistMode() ? this.outfitsStore.outfits().length > 0 : this._looks.generated(),
   );
 
   /** Altura declarada en el perfil; la ficha la cita sólo si existe. */
@@ -125,7 +118,7 @@ export class LooksPage implements OnInit {
 
   /** Costo de la última generación, formateado, o null si aún no hubo ninguna. */
   protected readonly costLabel = computed(() => {
-    const costUsd = this._outfits.lastCostUsd();
+    const costUsd = this.outfitsStore.lastCostUsd();
     return costUsd === null ? null : `${costUsd.toFixed(costFractionDigits)} USD`;
   });
 
@@ -138,7 +131,7 @@ export class LooksPage implements OnInit {
    * @returns {void}
    */
   ngOnInit(): void {
-    this._outfits.reset();
+    this.outfitsStore.reset();
     this._looks.reset();
     void this._closet.load();
     void this._profile.load();
@@ -185,131 +178,21 @@ export class LooksPage implements OnInit {
   }
 
   /**
-   * Marca o desmarca un look como guardado.
-   * @param {Outfit} outfit - Look afectado.
-   * @param {boolean} isFavorite - Nuevo estado del favorito.
-   * @returns {Promise<void>}
-   */
-  protected async toggleFavorite(outfit: Outfit, isFavorite: boolean): Promise<void> {
-    await this._sendFeedback(outfit, { kind: 'FAVORITE', value: isFavorite }, null);
-  }
-
-  /**
-   * Marca el look como usado. Suma un uso a cada prenda, que es lo que alimenta la
-   * penalización por repetición del motor.
-   * @param {Outfit} outfit - Look afectado.
-   * @returns {Promise<void>}
-   */
-  protected async markWorn(outfit: Outfit): Promise<void> {
-    await this._sendFeedback(outfit, { kind: 'WORN' }, 'Anotado: suma un uso a cada prenda.');
-  }
-
-  /**
-   * Guarda la valoración del look.
-   * @param {Outfit} outfit - Look afectado.
-   * @param {number} rating - Nota de 1 a 5.
-   * @returns {Promise<void>}
-   */
-  protected async rate(outfit: Outfit, rating: number): Promise<void> {
-    await this._sendFeedback(outfit, { kind: 'RATING', rating }, null);
-  }
-
-  /**
-   * Rechaza el look con su motivo.
-   * @param {Outfit} outfit - Look afectado.
-   * @param {OutfitRejectedReason} reason - Motivo del rechazo.
-   * @returns {Promise<void>}
-   */
-  protected async reject(outfit: Outfit, reason: OutfitRejectedReason): Promise<void> {
-    await this._sendFeedback(
-      outfit,
-      { kind: 'REJECTED', reason },
-      'Anotado: la próxima tanda lo tendrá en cuenta.',
-    );
-  }
-
-  /**
-   * Borra un look guardado, preguntando antes.
-   * @param {Outfit} outfit - Look a borrar.
-   * @returns {Promise<void>}
-   */
-  protected async removeOutfit(outfit: Outfit): Promise<void> {
-    const confirmed = await this._confirm.ask({
-      title: 'Borrar el look',
-      message: `Se borra "${outfit.title}" y su historial de valoraciones. Tus prendas no se tocan.`,
-      confirmLabel: 'Borrar',
-      tone: 'danger',
-    });
-    if (!confirmed) {
-      return;
-    }
-    this.pendingOutfitId.set(outfit.id);
-    try {
-      await this._outfits.remove(outfit.id);
-    } catch {
-      this._notify.error('No se pudo borrar el look. Inténtalo otra vez.');
-    } finally {
-      this.pendingOutfitId.set(null);
-    }
-  }
-
-  /**
-   * Indica si hay una acción en vuelo sobre ese look.
-   * @param {Outfit} outfit - Look de la ficha.
-   * @returns {boolean}
-   */
-  protected isPending(outfit: Outfit): boolean {
-    return this.pendingOutfitId() === outfit.id;
-  }
-
-  /**
    * Pide los looks al estilista y avisa de lo que el servidor descartó.
    * @private
    * @param {GenerateOutfitsRequest} request - Configuración del panel.
    * @returns {Promise<void>}
    */
   private async _generateWithStylist(request: GenerateOutfitsRequest): Promise<void> {
-    const ok = await this._outfits.generate(request);
+    const ok = await this.outfitsStore.generate(request);
     if (!ok) {
       return;
     }
-    const discarded = this._outfits.discarded();
+    const discarded = this.outfitsStore.discarded();
     if (discarded.length > 0) {
       this._notify.warning(
         `El estilista propuso ${discarded.length} look(s) que no pasaron la validación del servidor.`,
       );
-    }
-  }
-
-  /**
-   * Manda un evento de feedback y refleja el resultado.
-   * @private
-   * @param {Outfit} outfit - Look afectado.
-   * @param {Partial<OutfitFeedbackRequest> & Pick<OutfitFeedbackRequest, 'kind'>} feedback - Evento a registrar.
-   * @param {string | null} successMessage - Aviso al usuario, si procede.
-   * @returns {Promise<void>}
-   */
-  private async _sendFeedback(
-    outfit: Outfit,
-    feedback: Partial<OutfitFeedbackRequest> & Pick<OutfitFeedbackRequest, 'kind'>,
-    successMessage: string | null,
-  ): Promise<void> {
-    this.pendingOutfitId.set(outfit.id);
-    try {
-      await this._outfits.addFeedback(outfit.id, {
-        rating: null,
-        reason: null,
-        note: null,
-        value: true,
-        ...feedback,
-      });
-      if (successMessage !== null) {
-        this._notify.success(successMessage);
-      }
-    } catch {
-      this._notify.error('No se pudo guardar tu valoración. Inténtalo otra vez.');
-    } finally {
-      this.pendingOutfitId.set(null);
     }
   }
 }

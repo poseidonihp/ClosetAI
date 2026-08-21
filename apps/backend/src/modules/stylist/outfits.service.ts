@@ -18,8 +18,10 @@ import {
   type Outfit,
   type OutfitFeedbackRequest,
   type OutfitGenerationSnapshot,
+  type OutfitQuery,
 } from '@closetai/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageDriver } from '../../storage/storage.driver';
 import { AiJobsService } from '../ai/ai-jobs.service';
 import { AiUsageService } from '../ai/ai-usage.service';
 import { costUsdFromUsage } from '../ai/openai-pricing';
@@ -36,6 +38,7 @@ import {
 import { buildStylistInput, type IStylistInputResult } from './llm/stylist-input';
 import { StylistLlmService, type IStylistResult } from './llm/stylist-llm.service';
 import { stylistPromptVersion } from './llm/stylist.prompt.v2';
+import { toRenderDto } from './render/render-dto';
 import { StylistService } from './stylist.service';
 
 const unavailableMessage =
@@ -56,15 +59,20 @@ const requestHashLength = 16;
 /** Looks guardados que devuelve el listado. Un historial más largo no aporta nada. */
 const maxListedOutfits = 30;
 
-/** Relaciones que `toDto` necesita para reconstruir la ficha completa. */
-const outfitInclude = {
+/**
+ * Relaciones que `toDto` necesita para reconstruir la ficha completa. Se exporta
+ * para que el servicio de renders lea el mismo look sin declarar otro `include`
+ * que pudiera desincronizarse del DTO.
+ */
+export const outfitInclude = {
   items: {
     orderBy: { sortOrder: 'asc' },
     include: { garment: { include: garmentInclude } },
   },
+  renders: { orderBy: { createdAt: 'desc' } },
 } as const satisfies Prisma.OutfitInclude;
 
-type OutfitRowWithRelations = Prisma.OutfitGetPayload<{ include: typeof outfitInclude }>;
+export type OutfitRowWithRelations = Prisma.OutfitGetPayload<{ include: typeof outfitInclude }>;
 
 /** Todo lo que hace falta para guardar una tanda de looks. */
 interface IPersistContext {
@@ -92,6 +100,7 @@ export class OutfitsService {
    * @param {StylistService} _stylist - Capa 1: motor de compatibilidad.
    * @param {StylistLlmService} _llm - Capa 2: estilista LLM.
    * @param {GarmentsService} _garments - Prendas del usuario, para la ficha.
+   * @param {StorageDriver} _storage - Driver de almacenamiento, para las URL de los renders.
    * @param {AiJobsService} _jobs - Presupuesto, idempotencia y reintentos.
    * @param {AiUsageService} _usage - Registro de auditoría del consumo.
    */
@@ -100,6 +109,7 @@ export class OutfitsService {
     private readonly _stylist: StylistService,
     private readonly _llm: StylistLlmService,
     private readonly _garments: GarmentsService,
+    private readonly _storage: StorageDriver,
     private readonly _jobs: AiJobsService,
     private readonly _usage: AiUsageService,
   ) {}
@@ -163,16 +173,30 @@ export class OutfitsService {
   /**
    * Lista los looks guardados del usuario, del más reciente al más antiguo.
    * @param {string} userId - Usuario autenticado.
+   * @param {OutfitQuery} [query={}] - Filtro del listado.
    * @returns {Promise<Outfit[]>}
    */
-  async list(userId: string): Promise<Outfit[]> {
+  async list(userId: string, query: OutfitQuery = {}): Promise<Outfit[]> {
     const outfits = await this._prisma.outfit.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(query.favorite === undefined ? {} : { isFavorite: query.favorite }),
+      },
       include: outfitInclude,
       orderBy: { createdAt: 'desc' },
       take: maxListedOutfits,
     });
     return outfits.map(outfit => this.toDto(outfit));
+  }
+
+  /**
+   * Devuelve un look guardado del usuario.
+   * @param {string} userId - Usuario autenticado.
+   * @param {string} outfitId - Look buscado.
+   * @returns {Promise<Outfit>}
+   */
+  async findOne(userId: string, outfitId: string): Promise<Outfit> {
+    return this.toDto(await this._requireOwned(userId, outfitId));
   }
 
   /**
@@ -230,8 +254,9 @@ export class OutfitsService {
    * @returns {Promise<void>}
    */
   async remove(userId: string, outfitId: string): Promise<void> {
-    await this._requireOwned(userId, outfitId);
+    const outfit = await this._requireOwned(userId, outfitId);
     await this._prisma.outfit.delete({ where: { id: outfitId } });
+    await Promise.all(outfit.renders.map(render => this._storage.delete(render.imageKey)));
   }
 
   /**
@@ -267,6 +292,7 @@ export class OutfitsService {
       promptVersion: outfit.promptVersion,
       modelUsed: outfit.modelUsed,
       items: outfit.items.map(item => this._toItemDto(item)),
+      renders: outfit.renders.map(render => toRenderDto(render, key => this._storage.urlFor(key))),
       referenceBrands: brands.success ? brands.data : { luxury: [], affordable: [] },
       scoreBreakdown: snapshot.success ? snapshot.data.scoreBreakdown : [],
       isStale: snapshot.success && outfit.items.length !== snapshot.data.garmentIds.length,

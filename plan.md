@@ -10,7 +10,7 @@
 | 3 — Etiquetado por visión         | ☑      |
 | 4 — Estilista LLM y ficha         | ☑      |
 | 5 — Análisis de vacíos y feedback | ☑      |
-| 6 — Render visual con IA          | ☐      |
+| 6 — Render visual con IA          | ☑      |
 | 7 — ¿Me lo compro?                | ☐      |
 | 8 — PWA y despliegue              | ☐      |
 
@@ -408,7 +408,7 @@ Cada fase entrega algo usable y verificable en escritorio **y** móvil. No se pa
 - No se promete un número fijo de compras: cada sugerencia debe explicar qué desbloquea, qué supuestos usa y por qué tiene prioridad. Las marcas son referencias, no disponibilidad ni precio garantizados.
 - **Verificar:** con un clóset de 5–6 prendas sugiere brechas coherentes con tu país y presupuesto, y cada una explica qué desbloquea. El resultado es vacío si el clóset ya tiene cobertura suficiente.
 
-### ☐ Fase 6 — Render visual con IA (opcional, por look)
+### ☑ Fase 6 — Render visual con IA (opcional, por look)
 
 - Botón "generar visual" → `RenderService` crea `AiJob(RENDER)` y manda las fotos reales de las prendas del look a la Image API (`images.edit`) o al flujo de imágenes de Responses API, según el adaptador elegido.
 - El prompt describe las prendas confirmadas, el estilo, el clima y las preferencias proporcionadas. No infiere género, peso ni medidas que no existan.
@@ -462,7 +462,20 @@ Los tres aceptan imagen y Structured Outputs. La visión usa `gpt-5.6-luna` con 
 - Cada rol debe declarar modelo, endpoint, nivel de detalle de imagen, esfuerzo de razonamiento si aplica, límite de tokens, timeout y precio vigente. No usar la etiqueta ambigua "modelo pequeño de GPT-5".
 - Etiquetado por visión: una imagen por prenda cuando sea suficiente, con `detail` elegido por precisión/costo. Si se reetiqueta una prenda, se registra el motivo y se conserva el resultado anterior.
 - Estilista: solo texto (las prendas de los mejores candidatos, no el clóset entero), con Structured Outputs. La Capa 1 reduce tokens, pero el costo real se calcula desde el usage devuelto por la API. El enum de prendas está topado en 40 (`maxGarmentsInEnum`), así que un armario de 300 prendas cuesta lo mismo que uno de 40.
-- Render de imagen: modelo de imagen configurable y detrás de confirmación explícita. El costo depende de modelo, tamaño, calidad y tokens de imágenes de entrada; no se fija un rango universal en este documento.
+- Render de imagen: modelo de imagen configurable y detrás de confirmación explícita. El costo depende de modelo, tamaño, calidad y tokens de imágenes de entrada; no se fija un rango universal en este documento. Al implementar la Fase 6 se fijaron `OPENAI_IMAGE_MODEL=gpt-image-2`, tamaño vertical (`1024x1536`) y calidad media, con `input_fidelity: high` porque lo que se renderiza son prendas concretas y no una idea.
+
+  **Confirmado el 20 de agosto de 2026** contra la tabla de precios de OpenAI. La tarifa de un modelo de imagen son **tres precios** por MTok y vive en `apps/backend/src/modules/ai/openai-pricing.ts`, atada al id del modelo:
+
+  | Modelo                 | Texto de entrada | Imagen de entrada | Imagen de salida |
+  | ---------------------- | ---------------- | ----------------- | ---------------- |
+  | `gpt-image-2`          | 5 USD            | 8 USD             | 30 USD           |
+  | `gpt-image-1.5`        | 5 USD            | 8 USD             | 32 USD           |
+  | `chatgpt-image-latest` | 5 USD            | 8 USD             | 32 USD           |
+  | `gpt-image-1`          | 5 USD            | 10 USD            | 40 USD           |
+  | `gpt-image-1-mini`     | 2 USD            | 2,50 USD          | 8 USD            |
+
+  Un modelo sin entrada en esa tabla se cobra a la más cara que conocemos, así que la reserva nunca se queda corta pero el costo registrado deja de ser cierto: añadir la tarifa antes de cambiar el modelo no es opcional. La tabla del proveedor declara además una imagen de entrada cacheada más barata que **no se aplica**, porque el `usage` de la API de imágenes no dice cuánto vino de caché; cobrarlo todo a precio completo sobreestima un poco y nunca se queda corto. `gpt-image-2` cuenta los tokens de salida con una fórmula propia —un vertical de calidad media ronda los 1 400— y acota los de entrada con un tope de parches por imagen, así que las cotas del estimador quedan por encima de las dos cosas. El tamaño y la calidad se fijan por entorno y no por petición porque el costo se confirma antes de generar: `auto` no se puede cotizar.
+
 - Evaluar una prenda antes de comprarla (Fase 7) son **dos llamadas** sobre la misma prenda: la visión con `OPENAI_VISION_MODEL` para catalogarla y una de sólo texto para redactar el veredicto, con la medición del motor ya resuelta. Esa segunda usa `OPENAI_STYLIST_MODEL` y no una variable propia: es la misma tarea que el estilista, y otra variable sólo añadiría un sitio donde desincronizar el precio.
 - Referencias oficiales a verificar antes de implementar: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [imágenes y visión](https://developers.openai.com/api/docs/guides/images-vision), [generación y edición de imágenes](https://developers.openai.com/api/docs/guides/image-generation), [catálogo de modelos](https://developers.openai.com/api/docs/models).
 

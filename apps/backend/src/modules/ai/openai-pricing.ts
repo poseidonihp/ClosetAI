@@ -66,3 +66,88 @@ export function costUsdFromUsage(model: string, usage: ITokenUsage): number {
 export function estimateCostUsd(model: string, expectedUsage: ITokenUsage): number {
   return costUsdFromUsage(model, expectedUsage);
 }
+
+/**
+ * Tarifa de un modelo de imagen. Se separa de la de texto porque son tres
+ * precios distintos y no dos: el texto del prompt, los tokens de las imágenes que
+ * entran y los tokens de la imagen que sale, que es lo que domina el costo.
+ */
+export interface IImageModelPricing {
+  inputTextUsdPerMTok: number;
+  inputImageUsdPerMTok: number;
+  outputImageUsdPerMTok: number;
+}
+
+/**
+ * Precios confirmados contra la tabla de OpenAI el 20 de agosto de 2026, al
+ * implementar la Fase 6. Están atados al id del modelo y no al entorno: cambiar
+ * `OPENAI_IMAGE_MODEL` sin añadir aquí su tarifa dejaría el costo mal calculado
+ * en silencio.
+ */
+const imagePricingByModel: Record<string, IImageModelPricing> = {
+  'gpt-image-2': {
+    inputTextUsdPerMTok: 5,
+    inputImageUsdPerMTok: 8,
+    outputImageUsdPerMTok: 30,
+  },
+  'gpt-image-1.5': {
+    inputTextUsdPerMTok: 5,
+    inputImageUsdPerMTok: 8,
+    outputImageUsdPerMTok: 32,
+  },
+  'chatgpt-image-latest': {
+    inputTextUsdPerMTok: 5,
+    inputImageUsdPerMTok: 8,
+    outputImageUsdPerMTok: 32,
+  },
+  'gpt-image-1': {
+    inputTextUsdPerMTok: 5,
+    inputImageUsdPerMTok: 10,
+    outputImageUsdPerMTok: 40,
+  },
+  'gpt-image-1-mini': {
+    inputTextUsdPerMTok: 2,
+    inputImageUsdPerMTok: 2.5,
+    outputImageUsdPerMTok: 8,
+  },
+};
+
+/**
+ * Tarifa de un modelo de imagen desconocido: la del más caro que conocemos, para
+ * que la reserva de presupuesto nunca se quede corta.
+ */
+export const fallbackImagePricing: IImageModelPricing = {
+  inputTextUsdPerMTok: 5,
+  inputImageUsdPerMTok: 10,
+  outputImageUsdPerMTok: 40,
+};
+
+/** Consumo de una generación de imagen, ya normalizado. */
+export interface IImageTokenUsage {
+  inputTextTokens: number;
+  inputImageTokens: number;
+  outputImageTokens: number;
+}
+
+/**
+ * Devuelve la tarifa de un modelo de imagen, o null si no está en la tabla.
+ * @param {string} model - Identificador del modelo.
+ * @returns {IImageModelPricing | null}
+ */
+export function imagePricingFor(model: string): IImageModelPricing | null {
+  return imagePricingByModel[model] ?? null;
+}
+
+/**
+ * Calcula el costo en USD de una generación de imagen a partir del consumo real.
+ * @param {string} model - Identificador del modelo.
+ * @param {IImageTokenUsage} usage - Consumo reportado por el proveedor.
+ * @returns {number}
+ */
+export function imageCostUsdFromUsage(model: string, usage: IImageTokenUsage): number {
+  const pricing = imagePricingFor(model) ?? fallbackImagePricing;
+  const textUsd = (usage.inputTextTokens * pricing.inputTextUsdPerMTok) / tokensPerMillion;
+  const inputImageUsd = (usage.inputImageTokens * pricing.inputImageUsdPerMTok) / tokensPerMillion;
+  const outputUsd = (usage.outputImageTokens * pricing.outputImageUsdPerMTok) / tokensPerMillion;
+  return textUsd + inputImageUsd + outputUsd;
+}

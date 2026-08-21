@@ -5,9 +5,11 @@ import type {
   LookDiagnostics,
   Outfit,
   OutfitFeedbackRequest,
+  RenderQuote,
 } from '@closetai/shared-types';
 import { AiUsageStore } from '../../core/ai/ai-usage.store';
 import { ApiClient } from '../../core/http/api.client';
+import { OutfitActionsService } from './outfit-actions.service';
 
 /**
  * Looks del estilista LLM.
@@ -26,6 +28,7 @@ import { ApiClient } from '../../core/http/api.client';
 export class OutfitsStore {
   private readonly _api = inject(ApiClient);
   private readonly _usage = inject(AiUsageStore);
+  private readonly _actions = inject(OutfitActionsService);
 
   private readonly _outfits = signal<Outfit[]>([]);
   private readonly _diagnostics = signal<LookDiagnostics | null>(null);
@@ -92,8 +95,8 @@ export class OutfitsStore {
    * @returns {Promise<Outfit>}
    */
   async addFeedback(outfitId: string, feedback: OutfitFeedbackRequest): Promise<Outfit> {
-    const updated = await this._api.post<Outfit>(`stylist/outfits/${outfitId}/feedback`, feedback);
-    this._outfits.update(list => list.map(outfit => (outfit.id === updated.id ? updated : outfit)));
+    const updated = await this._actions.addFeedback(outfitId, feedback);
+    this._replace(updated);
     return updated;
   }
 
@@ -103,7 +106,48 @@ export class OutfitsStore {
    * @returns {Promise<void>}
    */
   async remove(outfitId: string): Promise<void> {
-    await this._api.delete<void>(`stylist/outfits/${outfitId}`);
+    await this._actions.remove(outfitId);
     this._outfits.update(list => list.filter(outfit => outfit.id !== outfitId));
+  }
+
+  /**
+   * Pregunta qué costaría el render de un look. Es gratis y no llama al
+   * proveedor: es lo que permite confirmar el costo antes de gastarlo.
+   * @param {string} outfitId - Look a renderizar.
+   * @returns {Promise<RenderQuote>}
+   */
+  async renderQuote(outfitId: string): Promise<RenderQuote> {
+    return this._actions.renderQuote(outfitId);
+  }
+
+  /**
+   * Genera el render visual de un look y refleja la ficha actualizada.
+   * @param {string} outfitId - Look a renderizar.
+   * @returns {Promise<number>}
+   */
+  async render(outfitId: string): Promise<number> {
+    const response = await this._actions.render(outfitId);
+    this._replace(response.outfit);
+    return response.costUsd;
+  }
+
+  /**
+   * Borra un render del look. El look y su historial no se tocan.
+   * @param {string} outfitId - Look al que pertenece.
+   * @param {string} renderId - Render a borrar.
+   * @returns {Promise<void>}
+   */
+  async removeRender(outfitId: string, renderId: string): Promise<void> {
+    this._replace(await this._actions.removeRender(outfitId, renderId));
+  }
+
+  /**
+   * Sustituye un look de la tanda por su versión actualizada.
+   * @private
+   * @param {Outfit} updated - Look tal como lo devolvió el servidor.
+   * @returns {void}
+   */
+  private _replace(updated: Outfit): void {
+    this._outfits.update(list => list.map(outfit => (outfit.id === updated.id ? updated : outfit)));
   }
 }

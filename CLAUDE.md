@@ -16,14 +16,13 @@ responsive (mismo código en escritorio y móvil), instalable como PWA.
 - [examplepng.png](examplepng.png) — la especificación visual de la ficha de look.
   El objetivo es esa ficha, pero armada con prendas reales de la base de datos.
 
-**Estado: Fases 0 a 4 completas; la 5 está implementada y a falta de su
-verificación manual con una clave real.** Hay auth, storage privado,
+**Estado: Fases 0 a 6 completas y verificadas.** Hay auth, storage privado,
 infraestructura de IA, shell responsive, perfil de estilo, catálogo de tipos de
 prenda, clóset con subida de fotos, el motor de compatibilidad con su ficha de
 look determinista, el etiquetado por visión, el estilista LLM con persistencia de
-`Outfit`, el bucle de aprendizaje sobre el `engineScore` y el análisis de vacíos
-con su página "Qué comprar". **No hay todavía** render por IA (fase 6), evaluación
-de una prenda antes de comprarla (fase 7) ni PWA (fase 8).
+`Outfit`, el bucle de aprendizaje sobre el `engineScore`, el análisis de vacíos
+con su página "Qué comprar" y el render visual del look. **No hay todavía**
+evaluación de una prenda antes de comprarla (fase 7) ni PWA (fase 8).
 
 ## Comandos
 
@@ -132,7 +131,10 @@ la consulta para saber qué familias se comportan como neutras.
   manda `encryptedPassword`; el servidor descifra y compara contra el hash bcrypt.
   Cualquier endpoint que acepte password recibe `encryptedPassword`, nunca texto
   plano. `RSA_PRIVATE_KEY_B64` es obligatoria para arrancar.
-- **Validación**: sólo Zod, vía `ZodValidationPipe`. Nada de class-validator.
+- **Validación**: sólo Zod, vía `ZodValidationPipe`. Nada de class-validator. El pipe
+  declara entrada y salida por separado, así que un esquema con `transform` encaja:
+  hace falta para una query, donde todo llega como texto y `z.coerce.boolean()`
+  convertiría `'false'` en `true`.
 - **Aislamiento por usuario es manual y no negociable**: cada método de servicio
   recibe `userId` y filtra por él (`findFirst({ where: { id, userId } })`, no
   `findUnique`). No hay RLS ni middleware que lo haga por ti.
@@ -284,6 +286,54 @@ la consulta para saber qué familias se comportan como neutras.
   además impide que se vuelva a proponer.
   `GET /api/wardrobe-gaps/coverage` expone la matriz y las candidatas sin llamar a
   nadie: es determinista y gratis.
+- **Render visual del look** ([modules/stylist/render/](apps/backend/src/modules/stylist/render/)):
+  la Fase 6. Cuelga del look y **no es una capa nueva**: la ficha determinista sigue
+  siendo la fuente de verdad y el render se suma a ella.
+  **Es aspiracional y se dice**: el modelo de imagen puede alterar color, textura,
+  logos y ajuste, así que la imagen se etiqueta como generada por IA en la ficha y
+  el aviso viaja también en la confirmación de costo. Un fallo o un rechazo del
+  proveedor **no toca el look**: se cierra el job con su motivo y la ficha se queda
+  como estaba.
+  **El costo se confirma antes de gastarlo.** `GET /api/stylist/outfits/:id/render/quote`
+  es determinista y gratis —modelo, calidad, tamaño, cuántas fotos viajan y la
+  estimación— y es lo que el cliente enseña antes de que el usuario pulse. Por eso
+  la calidad y el tamaño salen del entorno y no de la petición, y por eso no se
+  ofrece `auto`: un tamaño que decide el proveedor no se puede cotizar.
+  **Cada pulsación confirmada es un render nuevo**, como en el estilista y al
+  contrario que la lista de la compra: pedir otra imagen del mismo look devuelve
+  otra imagen, que es exactamente lo que se está pidiendo. Lo único que reutiliza la
+  reserva es un reintento tras un fallo mientras queden intentos.
+  **Que no invente ropa no se le pide, se le impide en parte**: las fotos que viajan
+  son las de las prendas del look, y el prompt numera cada prenda con su foto
+  ([render.prompt.v1.ts](apps/backend/src/modules/stylist/render/render.prompt.v1.ts)).
+  Aquí la garantía es más débil que en las capas de texto —un modelo de imagen no
+  tiene enum que lo ate— y de ahí que la ficha, y no el render, siga siendo la
+  verdad. El prompt va versionado en `OutfitRender.promptVersion` y el texto exacto
+  en `promptUsed`, que es lo único que explica por qué una imagen salió como salió.
+  **Privacidad**: fotografiar tu propia ropa frente al espejo es normal, así que las
+  fotos pueden llevar cara y cuerpo. El prompt prohíbe reproducir a esa persona y
+  encuadra la figura con la cara fuera del plano; del perfil sólo entra lo declarado
+  y **nunca el peso ni la complexión** (riesgos 7 y 8 del plan).
+  `RenderService` sólo habla con `OpenAiClient.editImage`, que aísla endpoint,
+  modelo y ajustes. El modelo por defecto es `gpt-image-2`. **Qué ajustes admite
+  cada modelo va atado a su id y no al entorno**, igual que los precios:
+  `input_fidelity` sólo viaja a los modelos que lo aceptan (`supportsInputFidelity`),
+  porque `gpt-image-2` lo rechaza con un 400 y ya procesa toda entrada en alta
+  fidelidad. Un ajuste que se omite cuesta calidad; uno que se manda de más tumba
+  la llamada entera, así que la lista es de lo permitido y no de lo prohibido. Los precios de los
+  modelos de imagen son **tres tarifas** —texto, imagen de entrada, imagen de
+  salida— y viven en [openai-pricing.ts](apps/backend/src/modules/ai/openai-pricing.ts)
+  con la misma regla que los de texto: un modelo sin tarifa se cobra a la más cara
+  que conocemos, así que la reserva no se queda corta pero el costo registrado deja
+  de ser cierto. La tarifa de imagen de entrada cacheada **no se aplica** a
+  propósito: el `usage` de la API de imágenes no desglosa la caché, y cobrarlo todo
+  a precio completo sobreestima antes que quedarse corto. Las cotas del estimador
+  ([render.service.ts](apps/backend/src/modules/stylist/render/render.service.ts))
+  quedan por encima de lo que cuenta `gpt-image-2` tanto de entrada como de salida,
+  así que la confirmación de costo nunca promete menos de lo que va a cobrar.
+  El binario se guarda en storage privado con key `userId/outfitId/<archivo>`, así
+  que se lee por `/api/media` como cualquier foto. Borrar el look borra sus renders
+  por cascada y **sus archivos a mano**: la cascada de la base no sabe nada del disco.
 - **IA** ([modules/ai/](apps/backend/src/modules/ai/)): toda llamada a un proveedor
   pasa por `AiJobsService.reserve()`, que dentro de una transacción `Serializable`
   comprueba el presupuesto mensual y crea el `AiJob` con su `idempotencyKey`
@@ -292,12 +342,18 @@ la consulta para saber qué familias se comportan como neutras.
   no contar dos veces la misma llamada; `AiUsageLog` es el detalle de auditoría
   (modelo, tokens, latencia, error) y se expone en `GET /api/ai/usage`. Los
   reintentos se acotan con `AI_JOB_MAX_ATTEMPTS` y el timeout del proveedor con
-  `AI_REQUEST_TIMEOUT_MS`; un fallo marcado como no reintentable (una negativa del
-  modelo) agota el job de golpe en vez de ofrecer tres intentos estériles.
+  `AI_REQUEST_TIMEOUT_MS` —las llamadas de imagen usan el suyo,
+  `AI_IMAGE_REQUEST_TIMEOUT_MS`, porque generar una imagen tarda mucho más que
+  devolver JSON y con 60 s un render de calidad alta se cortaría casi siempre—; un
+  fallo marcado como no reintentable (una negativa del modelo) agota el job de golpe
+  en vez de ofrecer tres intentos estériles.
   **El único que habla con OpenAI es [OpenAiClient](apps/backend/src/modules/ai/openai.client.ts)**
   (Responses API + Structured Outputs). Devuelve el texto crudo y clasifica el
   error en `AiProviderError` con su `code` y si es reintentable; validar la salida
-  es cosa de quien la pidió. `maxRetries: 0` a propósito: los intentos los cuenta
+  es cosa de quien la pidió. El mensaje del `code` es genérico porque lo lee el
+  usuario, así que el motivo técnico —estado HTTP, `code`, `param` y `request_id`—
+  va aparte en `detail` y se registra al clasificar: sin esa línea, un fallo del
+  proveedor no se puede diagnosticar desde el log. `maxRetries: 0` a propósito: los intentos los cuenta
   `AiJob` y dos contadores harían imposible saber cuántas llamadas se pagaron.
   Sin `OPENAI_API_KEY` el backend arranca igual y los endpoints de IA responden
   503 con un mensaje claro. Los precios por modelo viven en
@@ -427,6 +483,18 @@ la consulta para saber qué familias se comportan como neutras.
   acciones —guardar, me lo puse, valorar, rechazar con motivo, borrar—, que son las
   que alimentan el bucle de aprendizaje. Las marcas se etiquetan como referencias de
   estilo, nunca como precio ni disponibilidad.
+  El **render visual** vive en la columna de lo visual, encima de las fotos reales y
+  no en su lugar: la referencia de verdad tiene que quedar a la vista al lado de la
+  imagen generada. Cada render lleva su pie "Generado por IA" con el modelo, y el
+  botón pregunta el costo al servidor y lo enseña en la confirmación antes de gastar
+  nada. Un render que no gusta se borra sin tocar el look. El visor a pantalla
+  completa nunca mezcla las dos listas —fotos reales y renders van por separado—
+  porque confundir una prenda con una imagen generada es justo lo que la ficha evita.
+  **Las acciones de la ficha no viven en la página** sino en
+  [outfit-list.component.ts](apps/frontend/src/app/features/looks/outfit-list.component.ts),
+  que recibe el store por entrada (`IOutfitActionsStore`): hay dos listas que enseñan
+  la misma ficha y la accionan igual, y duplicar sus diálogos y su estado dejaría dos
+  sitios donde arreglar el mismo botón.
   El interruptor del estilista vive en el panel y la página decide a qué capa
   llamar; los looks del motor son gratis y no se pueden valorar. La ocasión sólo la
   entiende la Capa 2, así que al pedirle looks al motor se listan los campos que sí
@@ -442,6 +510,16 @@ la consulta para saber qué familias se comportan como neutras.
   los looks **aceptados** y no sobre los que llegaron: recortar antes de validar
   dejaba la tanda vacía si el primero era inválido, que con un solo look pedido es
   pagar la llamada para no recibir nada.
+- La página **Guardados** ([saved-looks.page.ts](apps/frontend/src/app/features/looks/saved-looks.page.ts))
+  es la otra mitad de esa decisión. Un look guardado **sí** es historial —se consulta
+  días después y desde otra pantalla—, así que se recupera al entrar, como "Qué
+  comprar" y al revés que Looks. Enseña la ficha entera, renders incluidos, porque es
+  el mismo `LookCardComponent`: no hay una versión reducida del look que mantener.
+  **El filtro lo aplica el servidor** (`GET /api/stylist/outfits?favorite=true`) y no
+  la lista: el listado devuelve como mucho los treinta más recientes, así que filtrar
+  en el cliente haría desaparecer un guardado en cuanto se generaran treinta looks
+  nuevos. Quitar un look de guardados lo saca de la lista en el momento —es la única
+  invariante que la lista sostiene— y eso no lo borra ni pierde lo que valoraste.
 - La página **Qué comprar** ([features/shopping/](apps/frontend/src/app/features/shopping/))
   enseña dos cosas distintas y las separa: la **cobertura**, que es gratis y se
   recarga en cada visita porque depende del estado real del clóset, y las

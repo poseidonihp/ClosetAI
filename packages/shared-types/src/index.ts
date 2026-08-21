@@ -7,5 +7,6 @@ export * from './garment-type';
 export * from './vision';
 export * from './garment';
 export * from './stylist';
+export * from './render';
 export * from './outfit';
 export * from './gaps';
