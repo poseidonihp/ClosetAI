@@ -1,0 +1,170 @@
+<header class="page-header">
+  <div class="shopping-head">
+    <div>
+      <div class="uplabel">Vacíos del clóset</div>
+      <h1 class="serif page-title">Qué comprar</h1>
+      <p class="page-lead">
+        La cobertura se calcula con el mismo motor que arma tus looks: se prueba a meter cada prenda
+        en tu clóset y se cuenta qué conjuntos aparecerían. Las marcas son referencias de estilo, no
+        precio ni disponibilidad.
+      </p>
+    </div>
+    <button
+      type="button"
+      class="pill pill-solid"
+      data-test="action-analyze-page"
+      [disabled]="analyzing() || closetIsEmpty() || !analysisAvailable()"
+      (click)="analyze()"
+    >
+      {{ analyzing() ? 'Analizando…' : 'Analizar con IA' }}
+    </button>
+  </div>
+</header>
+
+<div class="page-body shopping-body" data-test="div-shopping-page">
+  <closet-error-banner [message]="error()" />
+
+  @if (closetIsEmpty()) {
+    <closet-empty-state
+      title="Tu clóset está vacío"
+      description="El análisis mide qué conjuntos puedes armar hoy, así que necesita prendas con las que contar. Añade unas cuantas y vuelve."
+      [icon]="iconShirt"
+    >
+      <a class="pill pill-solid" data-test="action-gocloset-page" routerLink="/closet">
+        Ir al clóset
+      </a>
+    </closet-empty-state>
+  } @else if (loading()) {
+    @for (card of skeletonCards; track card) {
+      <div class="skeleton-card">
+        <closet-skeleton height="24px" width="50%" />
+        <closet-skeleton class="mt-3 block" [rows]="4" height="13px" />
+      </div>
+    }
+  } @else {
+    @if (coverage(); as report) {
+      <section class="coverage panel-card" data-test="div-coverage-page">
+        <p class="section-title">Cobertura de tu clóset</p>
+        <p class="section-hint">Calculado sin IA y sin costo, con las prendas confirmadas.</p>
+
+        <dl class="coverage-stats">
+          <div>
+            <dt>Prendas utilizables</dt>
+            <dd>{{ report.eligibleCount }} de {{ report.closetSize }}</dd>
+          </div>
+          <div>
+            <dt>Conjuntos distintos</dt>
+            <dd>{{ report.distinctOutfits }}</dd>
+          </div>
+          <div>
+            <dt>Escenarios cubiertos</dt>
+            <dd>
+              {{ report.scenarios.length - report.uncoveredScenarioIds.length }} de
+              {{ report.scenarios.length }}
+            </dd>
+          </div>
+        </dl>
+
+        @if (uncoveredScenarios().length > 0) {
+          <p class="uplabel coverage-label">Hoy no puedes vestirte para</p>
+          <ul class="coverage-list">
+            @for (scenario of uncoveredScenarios(); track scenario.id) {
+              <li>{{ scenario.label }}</li>
+            }
+          </ul>
+        }
+
+        <p class="uplabel coverage-label">Por parte del cuerpo</p>
+        <ul class="coverage-slots">
+          @for (slot of report.slots; track slot.slot) {
+            <li class="coverage-slot" [class.coverage-slot-empty]="slot.availableCount === 0">
+              <span>{{ labels.garmentSlot[slot.slot] }}</span>
+              <strong>{{ slot.availableCount }}</strong>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (note(); as message) {
+      <output class="diagnostics" data-test="div-gapsnote-page">
+        <p class="uplabel">Lo que encontró el análisis</p>
+        <p class="diagnostics-note">{{ message }}</p>
+      </output>
+    }
+
+    @if (discarded().length > 0) {
+      <div class="diagnostics" data-test="div-discarded-page">
+        <p class="uplabel">Lo que se descartó del análisis</p>
+        <ul class="diagnostics-list">
+          @for (reason of discarded(); track reason) {
+            <li>{{ reason }}</li>
+          }
+        </ul>
+      </div>
+    }
+
+    @if (openGaps().length > 0) {
+      <section class="gap-list">
+        <p class="section-title">Tu lista, por orden de prioridad</p>
+        @for (gap of openGaps(); track gap.id) {
+          <closet-gap-card
+            [gap]="gap"
+            [busy]="isPending(gap)"
+            (purchased)="markPurchased(gap)"
+            (dismissed)="dismiss(gap)"
+            (reopened)="reopen(gap)"
+          />
+        }
+      </section>
+    } @else {
+      <closet-empty-state
+        title="Todavía no hay una lista de compras"
+        description="La cobertura de arriba ya es gratis. El análisis con IA ordena lo que falta, lo describe y propone marcas de referencia según tu país y tu presupuesto."
+        [icon]="iconBag"
+      >
+        <button
+          type="button"
+          class="pill pill-solid"
+          data-test="action-analyzeempty-page"
+          [disabled]="analyzing() || !analysisAvailable()"
+          (click)="analyze()"
+        >
+          {{ analyzing() ? 'Analizando…' : 'Analizar con IA' }}
+        </button>
+      </closet-empty-state>
+    }
+
+    @if (resolvedGaps().length > 0) {
+      <section class="gap-list">
+        <p class="section-title">Ya resueltas</p>
+        <p class="section-hint">
+          Lo que descartaste no vuelve a proponerse en los próximos análisis.
+        </p>
+        @for (gap of resolvedGaps(); track gap.id) {
+          <closet-gap-card
+            [gap]="gap"
+            [busy]="isPending(gap)"
+            (purchased)="markPurchased(gap)"
+            (dismissed)="dismiss(gap)"
+            (reopened)="reopen(gap)"
+          />
+        }
+      </section>
+    }
+
+    @if (usage.summary(); as summary) {
+      <p class="shopping-usage" data-test="div-usage-page">
+        Gasto de IA: {{ summary.committedUsd.toFixed(4) }} de
+        {{ summary.monthlyBudgetUsd.toFixed(2) }} USD este mes.
+        @if (costLabel(); as cost) {
+          El último análisis costó {{ cost }}.
+        }
+      </p>
+    }
+  }
+</div>
+
+@if (prefill(); as values) {
+  <closet-garment-dialog [prefill]="values" (closed)="closeDialog()" />
+}

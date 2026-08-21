@@ -1,0 +1,137 @@
+.shopping-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.shopping-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.skeleton-card {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--qp-line);
+  border-radius: 14px;
+  background: var(--qp-bg-soft);
+}
+
+// -- Cobertura --------------------------------------------------------------
+
+.coverage-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.coverage-stats dt {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+.coverage-stats dd {
+  margin: 3px 0 0;
+  font-size: 20px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--qp-ink);
+}
+
+.coverage-label {
+  margin: 16px 0 6px;
+}
+
+.coverage-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--qp-ink-soft);
+}
+
+.coverage-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coverage-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 11.5px;
+  color: var(--qp-ink-soft);
+}
+.coverage-slot strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--qp-ink);
+}
+.coverage-slot-empty {
+  border-color: var(--qp-clay);
+  color: var(--qp-clay);
+}
+.coverage-slot-empty strong {
+  color: var(--qp-clay);
+}
+
+// -- Diagnóstico y lista ----------------------------------------------------
+
+.diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--qp-line-strong);
+  border-radius: 12px;
+  background: var(--qp-bg-soft);
+}
+
+.diagnostics-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--qp-ink);
+}
+
+.diagnostics-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--qp-ink-soft);
+}
+
+.gap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shopping-usage {
+  margin: 4px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--qp-line);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--qp-mute);
+}
+
+@media (max-width: 639px) {
+  .shopping-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .shopping-head .pill {
+    justify-content: center;
+  }
+}

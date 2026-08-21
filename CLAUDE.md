@@ -16,13 +16,14 @@ responsive (mismo código en escritorio y móvil), instalable como PWA.
 - [examplepng.png](examplepng.png) — la especificación visual de la ficha de look.
   El objetivo es esa ficha, pero armada con prendas reales de la base de datos.
 
-**Estado: Fases 0, 1 y 2 completas; la 3 y la 4 están implementadas y a falta de
-su verificación manual con una clave real.** Hay auth, storage privado,
+**Estado: Fases 0 a 4 completas; la 5 está implementada y a falta de su
+verificación manual con una clave real.** Hay auth, storage privado,
 infraestructura de IA, shell responsive, perfil de estilo, catálogo de tipos de
 prenda, clóset con subida de fotos, el motor de compatibilidad con su ficha de
 look determinista, el etiquetado por visión, el estilista LLM con persistencia de
-`Outfit` y el bucle de aprendizaje sobre el `engineScore`. **No hay todavía**
-análisis de vacíos (fase 5), render por IA (fase 6) ni PWA (fase 7).
+`Outfit`, el bucle de aprendizaje sobre el `engineScore` y el análisis de vacíos
+con su página "Qué comprar". **No hay todavía** render por IA (fase 6), evaluación
+de una prenda antes de comprarla (fase 7) ni PWA (fase 8).
 
 ## Comandos
 
@@ -243,6 +244,46 @@ la consulta para saber qué familias se comportan como neutras.
   `Outfit` no tiene columna de confianza a propósito: el modelo puede autoevaluarse
   en `qualityNote`, que es una frase, y un número sin calibración medida se leería
   como una probabilidad.
+- **Análisis de vacíos** ([modules/wardrobe-gaps/](apps/backend/src/modules/wardrobe-gaps/)):
+  la Fase 5, con la misma división de la 4 y por los mismos motivos.
+  [coverage/](apps/backend/src/modules/wardrobe-gaps/coverage/) es **código puro**
+  sobre los DTO de `shared-types` —como el motor— y se prueba con objetos
+  literales ([coverage.fixtures.ts](apps/backend/src/modules/wardrobe-gaps/coverage/coverage.fixtures.ts)).
+  La matriz se recorre por **escenarios** (`estilo × banda térmica`,
+  [scenarios.ts](apps/backend/src/modules/wardrobe-gaps/coverage/scenarios.ts)): un
+  hueco sólo es un hueco si impide vestirse para algo concreto. Los estilos salen
+  del perfil y las dos bandas caen a los dos lados de `layeringTemperatureC`,
+  porque es ahí donde aparece la brecha de abrigo.
+  Lo que desbloquea una prenda se mide **metiéndola en el clóset y volviendo a
+  pasar el motor** ([hypotheses.ts](apps/backend/src/modules/wardrobe-gaps/coverage/hypotheses.ts)),
+  y se cuenta sobre el **núcleo** del look, no sobre el conjunto entero: un
+  accesorio cambia todos los conjuntos sin crear ninguna combinación nueva, y
+  contarlos diría que una bufanda desbloquea el clóset completo. Un abrigo, que
+  tampoco crea combinaciones, se justifica por los puntos de nota que gana cuando
+  la temperatura lo pide (`minScoreGainPoints`).
+  **Un slot vacío se propone aunque medirlo dé cero**: con el clóset a medias
+  ninguna prenda suelta desbloquea nada —hacen falta las tres a la vez— y la
+  medida literal diría que no hay nada que comprar justo cuando falta todo.
+  La cobertura usa `emptyFeedback` a propósito: es una propiedad del **clóset**, no
+  del historial, y si entraran los rechazos la lista de la compra cambiaría al
+  rechazar un look. Sólo cuenta lo `CONFIRMED`, así que confirmar prendas puede
+  cerrar brechas sin comprar nada, y la nota lo dice cuando hay borradores.
+  La Capa 2 ([llm/](apps/backend/src/modules/wardrobe-gaps/llm/)) **sólo ordena y
+  redacta**: las candidatas viajan como ids cortos `h1..hN` declarados como enum en
+  runtime y el servidor las vuelve a resolver; el slot, el tipo, el color, la
+  formalidad y cuántos conjuntos desbloquea son medidas del motor. Usa el modelo del
+  estilista (`OPENAI_STYLIST_MODEL`) y no una variable propia: es la misma tarea y
+  otra variable sólo añadiría un sitio donde desincronizar el precio.
+  **Sin candidatas no se llama al modelo** y **repetir el análisis sobre un clóset
+  que no cambió no vuelve a pagarse**: cada brecha guarda la huella de su entrada en
+  `analysisSnapshot` y la lista se reaplica. Es lo contrario que los looks —donde
+  cada pulsación es una tanda nueva— porque una lista de la compra sobre el mismo
+  clóset daría exactamente lo mismo.
+  Un análisis nuevo reemplaza las brechas `OPEN` y **conserva** `PURCHASED` y
+  `DISMISSED`: son decisiones del usuario, no resultados. Descartar una brecha
+  además impide que se vuelva a proponer.
+  `GET /api/wardrobe-gaps/coverage` expone la matriz y las candidatas sin llamar a
+  nadie: es determinista y gratis.
 - **IA** ([modules/ai/](apps/backend/src/modules/ai/)): toda llamada a un proveedor
   pasa por `AiJobsService.reserve()`, que dentro de una transacción `Serializable`
   comprueba el presupuesto mensual y crea el `AiJob` con su `idempotencyKey`
@@ -401,6 +442,15 @@ la consulta para saber qué familias se comportan como neutras.
   los looks **aceptados** y no sobre los que llegaron: recortar antes de validar
   dejaba la tanda vacía si el primero era inválido, que con un solo look pedido es
   pagar la llamada para no recibir nada.
+- La página **Qué comprar** ([features/shopping/](apps/frontend/src/app/features/shopping/))
+  enseña dos cosas distintas y las separa: la **cobertura**, que es gratis y se
+  recarga en cada visita porque depende del estado real del clóset, y las
+  **brechas**, que sí son un historial —una lista de la compra se consulta días
+  después y en otro sitio— y por eso se recuperan al entrar, al revés que los looks.
+  "Ya la compré" marca la brecha y abre el alta de prenda **precargada** con el
+  `prefill` de `GarmentDialogComponent`: la brecha ya describe la prenda, y hacer que
+  el usuario la teclee sería pedirle que copie lo que la app acaba de decirle. Al
+  cerrar el diálogo se recalcula la cobertura, que acaba de dejar de ser cierta.
 - Un `<select>` cuyas opciones salen de un `@for` **no** puede fijar el valor con
   `[value]` en el select: Angular lo escribe antes de que existan las opciones y
   se queda vacío. Se marca `[selected]` en la opción.

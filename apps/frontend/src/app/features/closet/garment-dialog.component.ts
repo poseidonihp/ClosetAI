@@ -47,18 +47,10 @@ import { ErrorBannerComponent } from '../../shared/ui/error-banner.component';
 import { FieldComponent } from '../../shared/ui/field.component';
 import { SubmitButtonComponent } from '../../shared/ui/submit-button.component';
 import { ClosetStore } from './closet.store';
+import type { IGarmentPrefill, IPendingPhoto } from './closet.types';
 import { GarmentTaggingPanelComponent } from './garment-tagging-panel.component';
 import { GarmentTypesStore } from './garment-types.store';
 import { compressForUpload } from './image-compression';
-
-/** Foto elegida en el cliente que todavía no está en el servidor. */
-export interface IPendingPhoto {
-  id: number;
-  file: File;
-  previewUrl: string;
-  status: 'pending' | 'uploading' | 'error';
-  error?: string;
-}
 
 const defaultColorHex = '#1a1815';
 
@@ -101,6 +93,8 @@ export class GarmentDialogComponent implements OnInit {
   readonly garment = input<Garment | null>(null);
   /** Archivos que llegan desde un arrastre o un pegado en el clóset. */
   readonly initialFiles = input<readonly File[]>([]);
+  /** Valores iniciales del alta. Sólo se aplican cuando no se está editando. */
+  readonly prefill = input<IGarmentPrefill | null>(null);
 
   readonly closed = output();
 
@@ -217,6 +211,8 @@ export class GarmentDialogComponent implements OnInit {
     if (garment) {
       this.current.set(garment);
       this._fillFrom(garment);
+    } else {
+      this._applyPrefill();
     }
     this.addFiles(this.initialFiles());
     this._destroyRef.onDestroy(() => this._revokePreviews());
@@ -651,6 +647,27 @@ export class GarmentDialogComponent implements OnInit {
       size: raw.size.trim() || null,
       status: GarmentStatusEnum.parse(raw.status),
     };
+  }
+
+  /**
+   * Vuelca los valores propuestos al abrir un alta precargada. El resto del
+   * formulario se queda como está: lo que llega es una descripción, no una prenda.
+   * @private
+   * @returns {void}
+   */
+  private _applyPrefill(): void {
+    const prefill = this.prefill();
+    if (!prefill) {
+      return;
+    }
+    this.form.patchValue({
+      name: prefill.name,
+      garmentTypeId: prefill.garmentTypeId,
+      slot: prefill.slot,
+      formality: prefill.formality,
+      primaryColorHex: prefill.primaryColorHex,
+      primaryColorName: prefill.primaryColorName,
+    });
   }
 
   /**

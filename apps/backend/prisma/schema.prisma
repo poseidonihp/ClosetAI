@@ -1,10 +1,11 @@
-// Schema de closetAI — Fases 0, 1, 3 y 4.
+// Schema de closetAI — Fases 0, 1, 3, 4 y 5.
 // Fase 0: usuarios, rotación de refresh tokens e infraestructura de IA
 // (AiJob + AiUsageLog). Fase 1: perfil de estilo, catálogo de tipos de prenda,
 // prendas e imágenes. Fase 3: etiquetado por visión sobre esa misma prenda.
 // Fase 4: looks del estilista (Outfit + OutfitItem) y su feedback, que es lo
 // primero que sí conviene guardar porque hay narrativa pagada detrás.
-// OutfitRender llega en la Fase 6 y WardrobeGap en la Fase 5.
+// Fase 5: WardrobeGap, las brechas del clóset con su prioridad y su estado.
+// OutfitRender llega en la Fase 6.
 
 generator client {
   provider      = "prisma-client-js"
@@ -37,6 +38,7 @@ model User {
   garments       Garment[]
   outfits        Outfit[]
   outfitFeedback OutfitFeedback[]
+  wardrobeGaps   WardrobeGap[]
 
   @@map("users")
 }
@@ -108,8 +110,9 @@ model AiJob {
 
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   usage          AiUsageLog[]
-  taggedGarments Garment[]    @relation("GarmentTaggingJob")
-  outfits        Outfit[]     @relation("OutfitStylingJob")
+  taggedGarments Garment[]     @relation("GarmentTaggingJob")
+  outfits        Outfit[]      @relation("OutfitStylingJob")
+  wardrobeGaps   WardrobeGap[] @relation("WardrobeGapAnalysisJob")
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
@@ -338,6 +341,14 @@ enum OutfitRejectedReason {
   GARMENT_UNAVAILABLE
 }
 
+/// Estado de una brecha del clóset. `DISMISSED` no sólo la oculta: el siguiente
+/// análisis no vuelve a proponer lo que el usuario ya descartó.
+enum WardrobeGapStatus {
+  OPEN
+  PURCHASED
+  DISMISSED
+}
+
 // =====================================================================
 // Perfil de estilo
 // =====================================================================
@@ -397,6 +408,7 @@ model GarmentType {
 
   garments          Garment[]
   avoidedByProfiles StyleProfile[] @relation("AvoidedGarmentTypes")
+  wardrobeGaps      WardrobeGap[]
 
   @@index([slot])
   @@map("garment_types")
@@ -593,4 +605,57 @@ model OutfitFeedback {
   @@index([outfitId])
   @@index([userId, createdAt])
   @@map("outfit_feedback")
+}
+
+// =====================================================================
+// Vacíos del clóset (Fase 5)
+// =====================================================================
+
+/// Una prenda que el clóset no tiene y que desbloquearía conjuntos.
+///
+/// Los datos exactos —slot, tipo, color, formalidad y cuántos conjuntos
+/// desbloquea— los calcula el motor de la Fase 2 sobre prendas hipotéticas; el
+/// modelo sólo ordena y redacta `description`, `reason` y `referenceBrands`. Por
+/// eso no hay ninguna columna de precio ni de disponibilidad: las marcas son
+/// referencias de estilo y la ficha lo dice.
+///
+/// Se persiste porque es una lista de la compra y no una tanda: se consulta días
+/// después, en la tienda. Un análisis nuevo reemplaza las `OPEN` y **conserva**
+/// las que el usuario resolvió, que son su decisión y no un resultado.
+model WardrobeGap {
+  id                      String            @id @default(uuid()) @db.Uuid
+  userId                  String            @map("user_id") @db.Uuid
+  status                  WardrobeGapStatus @default(OPEN)
+  /// 1 es lo primero que conviene comprar; lo fija el orden que devolvió el modelo.
+  priority                Int
+  slot                    GarmentSlot
+  garmentTypeId           String            @map("garment_type_id") @db.Uuid
+  colorName               String            @map("color_name")
+  colorHex                String            @map("color_hex")
+  formality               Int
+  description             String
+  reason                  String
+  /// Conjuntos que el motor pudo armar con la prenda hipotética y no sin ella.
+  unlockedOutfitsEstimate Int               @map("unlocked_outfits_estimate")
+  /// { luxury: string[], affordable: string[] }. Referencias de estilo, nada más.
+  referenceBrands         Json              @map("reference_brands")
+  coverageVersion         String            @map("coverage_version")
+  promptVersion           String            @map("prompt_version")
+  modelUsed               String?           @map("model_used")
+  /// Cobertura e hipótesis exactas que vio el modelo al proponerla.
+  analysisSnapshot        Json              @map("analysis_snapshot")
+  /// Job que pagó este análisis. Da modelo, costo e intentos a la UI.
+  jobId                   String?           @map("job_id") @db.Uuid
+  resolvedAt              DateTime?         @map("resolved_at") @db.Timestamptz(3)
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  garmentType GarmentType @relation(fields: [garmentTypeId], references: [id])
+  job         AiJob?      @relation("WardrobeGapAnalysisJob", fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([garmentTypeId])
+  @@index([jobId])
+  @@map("wardrobe_gaps")
 }

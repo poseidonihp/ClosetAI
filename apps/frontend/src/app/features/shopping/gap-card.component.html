@@ -1,0 +1,78 @@
+<article class="gap-card" data-test="div-gapcard-page">
+  <header class="gap-head">
+    <span class="gap-priority" aria-hidden="true">{{ gap().priority }}</span>
+    <div class="min-w-0">
+      <div class="uplabel">
+        {{ labels.garmentSlot[gap().slot] }} · {{ gap().garmentTypeName }} ·
+        {{ formalityLabel(gap().formality) }}
+      </div>
+      <h3 class="serif gap-title">{{ gap().description }}</h3>
+      <div class="gap-badges">
+        <span class="gap-swatch" [style.background]="gap().colorHex" aria-hidden="true"></span>
+        <span class="badge">{{ gap().colorName }}</span>
+        @if (unlockedText(); as unlocked) {
+          <span class="badge badge-strong">{{ unlocked }}</span>
+        }
+        @if (gap().status !== 'OPEN') {
+          <span class="badge">{{ labels.wardrobeGapStatus[gap().status] }}</span>
+        }
+      </div>
+    </div>
+  </header>
+
+  <div class="gap-body">
+    <p class="gap-reason">{{ gap().reason }}</p>
+
+    @if (hasReferenceBrands()) {
+      <div class="gap-brands">
+        <p class="uplabel">Marcas de referencia</p>
+        <dl class="brand-list">
+          @if (gap().referenceBrands.luxury.length > 0) {
+            <dt>Lujo</dt>
+            <dd>{{ gap().referenceBrands.luxury.join(' · ') }}</dd>
+          }
+          @if (gap().referenceBrands.affordable.length > 0) {
+            <dt>Asequible</dt>
+            <dd>{{ gap().referenceBrands.affordable.join(' · ') }}</dd>
+          }
+        </dl>
+        <p class="gap-hint">
+          Son referencias de estilo para orientarte, no precio ni disponibilidad.
+        </p>
+      </div>
+    }
+  </div>
+
+  <footer class="gap-actions">
+    @if (gap().status === 'OPEN') {
+      <button
+        type="button"
+        class="pill pill-solid"
+        data-test="action-purchased-page"
+        [disabled]="busy()"
+        (click)="purchased.emit()"
+      >
+        Ya la compré
+      </button>
+      <button
+        type="button"
+        class="pill pill-quiet"
+        data-test="action-dismiss-page"
+        [disabled]="busy()"
+        (click)="dismissed.emit()"
+      >
+        No me interesa
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="pill"
+        data-test="action-reopen-page"
+        [disabled]="busy()"
+        (click)="reopened.emit()"
+      >
+        Volver a ponerla en la lista
+      </button>
+    }
+  </footer>
+</article>

@@ -60,19 +60,24 @@ function describeRange(garment: Garment): string {
 }
 
 /**
- * Indica si el color de una prenda cae en la lista de colores evitados.
- * @param {Garment} garment - Prenda a evaluar.
+ * Indica si un color cae en la lista de colores evitados.
+ * @param {string} colorName - Nombre del color tal como se guardó.
+ * @param {string} colorHex - Color en formato `#rrggbb`.
  * @param {readonly string[]} avoidedColors - Colores que el usuario evita.
  * @returns {boolean}
  */
-function matchesAvoidedColor(garment: Garment, avoidedColors: readonly string[]): boolean {
-  const colorName = normalizeColorTerm(garment.primaryColorName);
-  const family = colorFamilyFromHex(garment.primaryColorHex);
+export function matchesAvoidedColor(
+  colorName: string,
+  colorHex: string,
+  avoidedColors: readonly string[],
+): boolean {
+  const normalizedName = normalizeColorTerm(colorName);
+  const family = colorFamilyFromHex(colorHex);
   const familyName = family ? normalizeColorTerm(colorFamilyLabels[family]) : '';
   return avoidedColors
     .map(normalizeColorTerm)
     .filter(term => term.length > 0)
-    .some(term => colorName.includes(term) || familyName === term);
+    .some(term => normalizedName.includes(term) || familyName === term);
 }
 
 const eligibilityRules: readonly IEligibilityRule[] = [
@@ -106,7 +111,11 @@ const eligibilityRules: readonly IEligibilityRule[] = [
     code: 'avoided-color',
     skippedForMustInclude: true,
     reject: (garment, context) =>
-      matchesAvoidedColor(garment, context.profile.avoidedColors)
+      matchesAvoidedColor(
+        garment.primaryColorName,
+        garment.primaryColorHex,
+        context.profile.avoidedColors,
+      )
         ? `Su color (${garment.primaryColorName}) está entre los que prefieres evitar.`
         : null,
   },

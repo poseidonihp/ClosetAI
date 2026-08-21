@@ -10,6 +10,7 @@ import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { StylistModule } from './modules/stylist/stylist.module';
+import { WardrobeGapsModule } from './modules/wardrobe-gaps/wardrobe-gaps.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { validateEnv } from './config/env.validation';
@@ -39,6 +40,7 @@ const requestsPerWindow = 100;
     GarmentTypesModule,
     GarmentsModule,
     StylistModule,
+    WardrobeGapsModule,
   ],
   providers: [
     {

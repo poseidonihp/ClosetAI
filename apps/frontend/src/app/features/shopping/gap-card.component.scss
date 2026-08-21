@@ -1,0 +1,119 @@
+.gap-card {
+  border: 1px solid var(--qp-line);
+  border-radius: 14px;
+  background: var(--qp-bg-soft);
+  overflow: hidden;
+}
+
+.gap-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--qp-line);
+}
+
+.gap-priority {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--qp-ink);
+}
+
+.gap-title {
+  margin: 3px 0 0;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+.gap-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.gap-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+}
+
+.badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  font-size: 10.5px;
+  color: var(--qp-mute);
+}
+.badge-strong {
+  border-color: var(--qp-sage);
+  color: var(--qp-sage);
+}
+
+.gap-body {
+  padding: 12px 18px 14px;
+}
+
+.gap-reason {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--qp-ink-soft);
+}
+
+.gap-brands {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--qp-line);
+}
+
+.brand-list {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 4px 10px;
+  margin: 7px 0 0;
+}
+.brand-list dt {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--qp-mute-2);
+}
+.brand-list dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--qp-ink-soft);
+}
+
+.gap-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--qp-mute-2);
+}
+
+.gap-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--qp-line);
+}
+
+.gap-actions .pill-quiet {
+  color: var(--qp-mute);
+}
+.gap-actions .pill:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -252,6 +252,13 @@ export const OutfitRejectedReasonEnum = z.enum([
   'GARMENT_UNAVAILABLE',
 ]);
 export type OutfitRejectedReason = z.infer<typeof OutfitRejectedReasonEnum>;
+/**
+ * En qué punto está una brecha del clóset. `DISMISSED` no es sólo una forma de
+ * ocultarla: el siguiente análisis no vuelve a proponer lo que el usuario ya
+ * descartó, así que la decisión se conserva aunque la brecha desaparezca.
+ */
+export const WardrobeGapStatusEnum = z.enum(['OPEN', 'PURCHASED', 'DISMISSED']);
+export type WardrobeGapStatus = z.infer<typeof WardrobeGapStatusEnum>;
 
 // =====================================================================
 // Etiquetas en español
@@ -452,6 +459,11 @@ export const enumLabels = {
     NOT_MY_STYLE: 'No es mi estilo',
     GARMENT_UNAVAILABLE: 'Una prenda no está disponible',
   } satisfies Record<OutfitRejectedReason, string>,
+  wardrobeGapStatus: {
+    OPEN: 'Pendiente',
+    PURCHASED: 'Ya la compré',
+    DISMISSED: 'No me interesa',
+  } satisfies Record<WardrobeGapStatus, string>,
 } as const;
 
 /** Formalidad 1–5 explicada en palabras, para no mostrar un número desnudo. */

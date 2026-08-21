@@ -7,13 +7,14 @@
 | 0 — Fundaciones                   | ☑      |
 | 1 — Perfil y clóset               | ☑      |
 | 2 — Motor y ficha de look         | ☑      |
-| 3 — Etiquetado por visión         | ☐      |
-| 4 — Estilista LLM y ficha         | ☐      |
-| 5 — Análisis de vacíos y feedback | ☐      |
+| 3 — Etiquetado por visión         | ☑      |
+| 4 — Estilista LLM y ficha         | ☑      |
+| 5 — Análisis de vacíos y feedback | ☑      |
 | 6 — Render visual con IA          | ☐      |
-| 7 — PWA y despliegue              | ☐      |
+| 7 — ¿Me lo compro?                | ☐      |
+| 8 — PWA y despliegue              | ☐      |
 
-> **Alcance del MVP.** La primera versión útil termina en la Fase 4: perfil, prendas, motor determinista, etiquetado automático, looks usando exclusivamente prendas existentes y feedback. El análisis de compras y el render son extensiones posteriores; no bloquean la validación del producto principal.
+> **Alcance del MVP.** La primera versión útil termina en la Fase 4: perfil, prendas, motor determinista, etiquetado automático, looks usando exclusivamente prendas existentes y feedback. El análisis de compras, el render y la evaluación de una prenda antes de comprarla son extensiones posteriores; no bloquean la validación del producto principal.
 
 ## Contexto
 
@@ -25,16 +26,16 @@ Resultado esperado: una app web que funciona igual de bien en el escritorio y en
 
 ## Decisiones tomadas
 
-| Tema             | Decisión                                                                                                                               |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Plataforma       | **Web responsive**, un solo código para escritorio y móvil, instalable como PWA en ambos.                                              |
-| Render del look  | **Ambos**: ficha determinista siempre (gratis, con las fotos reales) + botón opcional de generación de imagen por look.                |
-| Recomendación    | Motor híbrido: filtrado determinista en código + LLM como estilista/curador. Detallado abajo.                                          |
-| Perfil corporal  | Género opcional; las medidas, preferencias de ajuste y comodidad son la fuente principal. El género nunca excluye prendas por sí solo. |
-| Compras          | Fase 5 solo describe la prenda faltante con marcas de referencia. Sin links ni scraping.                                               |
-| Usuarios         | Multiusuario con login (auth portada de `journal`).                                                                                    |
-| Procesamiento IA | Visión, estilismo y render se modelan como `AiJob` asíncronos, con estado, reintentos, idempotencia y costo.                           |
-| Privacidad       | Imágenes privadas, sin publicación estática directa; acceso mediante endpoints autenticados o URLs firmadas.                           |
+| Tema             | Decisión                                                                                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plataforma       | **Web responsive**, un solo código para escritorio y móvil, instalable como PWA en ambos.                                                                    |
+| Render del look  | **Ambos**: ficha determinista siempre (gratis, con las fotos reales) + botón opcional de generación de imagen por look.                                      |
+| Recomendación    | Motor híbrido: filtrado determinista en código + LLM como estilista/curador. Detallado abajo.                                                                |
+| Perfil corporal  | Género opcional; las medidas, preferencias de ajuste y comodidad son la fuente principal. El género nunca excluye prendas por sí solo.                       |
+| Compras          | Fase 5 describe la prenda faltante con marcas de referencia; Fase 7 evalúa una prenda concreta desde su foto. Sin precio, disponibilidad, links ni scraping. |
+| Usuarios         | Multiusuario con login (auth portada de `journal`).                                                                                                          |
+| Procesamiento IA | Visión, estilismo y render se modelan como `AiJob` asíncronos, con estado, reintentos, idempotencia y costo.                                                 |
+| Privacidad       | Imágenes privadas, sin publicación estática directa; acceso mediante endpoints autenticados o URLs firmadas.                                                 |
 
 ## Arquitectura
 
@@ -105,6 +106,9 @@ Garment              userId, name, slot, garmentTypeId, primaryColorHex, primary
                      aiAttributes (Json), attributeConfidence (Json), taggingVersion?, taggedAt?,
                      taggingStatus (PENDING|SUGGESTED|CONFIRMED),
                      status (ACTIVE|LAUNDRY|STORED|DONATED|ARCHIVED), wearCount, lastWornAt
+                     ownership (OWNED | CONSIDERED) — eje aparte de `status`, que habla de
+                     la disponibilidad de ropa que ya posees. `CONSIDERED` es la prenda de
+                     la Fase 7, la que todavía estás pensando comprar.
 
 GarmentImage         garmentId, kind (ORIGINAL|THUMB|DETAIL), storageKey, mimeType,
                      width, height, byteSize, isPrimary, sortOrder
@@ -121,14 +125,27 @@ OutfitItem           outfitId, garmentId, slot, role, why (por qué esta prenda)
 
 OutfitRender         outfitId, kind (AI_MODEL), imageKey, modelUsed, promptUsed
 
-WardrobeGap          userId, slot, garmentTypeId, colorName, description, reason,
-                     unlockedOutfitsEstimate, priority, referenceBrands (Json),
+WardrobeGap          userId, slot, garmentTypeId, colorName, colorHex, formality,
+                     description, reason, unlockedOutfitsEstimate, priority,
+                     referenceBrands (Json), coverageVersion, promptVersion, modelUsed?,
+                     analysisSnapshot (Json), jobId?,
                      status (OPEN|PURCHASED|DISMISSED), createdAt, resolvedAt?
+
+PurchaseAdvice       userId, garmentId (único), status (OPEN|PURCHASED|DISMISSED),
+                     verdict (RECOMMENDED|CONDITIONAL|NOT_RECOMMENDED), verdictReason,
+                     headline, reason, stylingNotes[], pairedGarmentIds[],
+                     unlockedOutfitsEstimate, outfitsUsingItEstimate, scoreGainPoints,
+                     matchedGapId?, duplicateGarmentIds[],
+                     measureVersion, promptVersion, modelUsed?, analysisSnapshot (Json),
+                     jobId?, resolvedAt?, createdAt
+                     `garmentId` es único y no un historial 1:N: re-evaluar sobre el mismo
+                     clóset da lo mismo, y sobre un clóset distinto la respuesta anterior
+                     ya no es cierta.
 
 OutfitFeedback       outfitId, userId, kind (RATING|FAVORITE|REJECTED|WORN),
                      reason?, note?, createdAt
 
-AiJob                userId, kind (TAGGING|STYLING|GAP_ANALYSIS|RENDER),
+AiJob                userId, kind (TAGGING|STYLING|GAP_ANALYSIS|RENDER|PURCHASE_ADVICE),
                      status (QUEUED|RUNNING|SUCCEEDED|FAILED|CANCELLED),
                      idempotencyKey, attempts, providerRequestId?, model?,
                      estimatedCostUsd?, actualCostUsd?, errorMessage?, startedAt?, finishedAt?
@@ -365,7 +382,7 @@ Cada fase entrega algo usable y verificable en escritorio **y** móvil. No se pa
 - JSON crudo en `Garment.aiAttributes` para reprocesar sin volver a pagar cuando sea posible. Registro en `AiUsageLog`, incluyendo modelo, tokens/imágenes, latencia y error.
 - **Verificar:** subes una foto y el job termina; los atributos salen razonables; corriges uno y persiste; un timeout se puede reintentar; el costo aparece en el log; una imagen que contiene una cara recibe manejo conforme a la política de privacidad del producto.
 
-### ☐ Fase 4 — Estilista LLM y ficha del look
+### ☑ Fase 4 — Estilista LLM y ficha del look
 
 - `OutfitsService` + `modules/stylist/llm/`: construcción del prompt por bloques, Responses API + Structured Outputs con enum en runtime, validación de rechazo/incompleto y salida, remapeo de IDs a UUID, persistencia de `Outfit` + `OutfitItem` + snapshot de generación. El motor sigue siendo `StylistService`, y la Capa 2 parte de sus candidatos en vez de volver a enumerar.
 - El esquema del LLM devuelve únicamente IDs, explicación y narrativa. `slot` y rol los pone el catálogo, y **la paleta, el rango térmico y el `styleTag` los calcula el motor**: son datos exactos que ya existen, y pedírselos al modelo sólo abriría la puerta a un color que no está en la ropa. Sale de aquí también el `role` que este plan ponía en `items`: el vocabulario de `OutfitItemRole` ya declaraba desde la Fase 2 que lo deriva el servidor.
@@ -377,11 +394,17 @@ Cada fase entrega algo usable y verificable en escritorio **y** móvil. No se pa
 - Panel de generación: `styleTag`, ocasión, clima, "usar esta prenda" e interruptor del estilista. Favorito, marcar usado, valorar, rechazar con motivo y borrar. **No hay botón de "guardar"**: la generación ya persiste porque la llamada se pagó, y tirar el resultado obligaría a pagarlo otra vez. Lo que decide el usuario después es si le gusta, si se lo pone o si lo borra.
 - **Verificar:** pides "minimalista" y "smart casual"; ambos looks usan **solo** prendas confirmadas que subiste, o el sistema explica por qué una petición no es posible; las notas usan únicamente datos reales; la ficha se ve comparable al ejemplo en ambos anchos; rechazas un look por color y el siguiente lo tiene en cuenta.
 
-### ☐ Fase 5 — Análisis de vacíos y feedback
+### ☑ Fase 5 — Análisis de vacíos y feedback
 
 - La **cobertura se calcula en código**, reutilizando el motor de la Fase 2: matriz slot × formalidad × clima × color, más el conteo de looks válidos posibles y cuántos desbloquearía cada prenda hipotética. Determinista y auditable.
-- El LLM solo prioriza y redacta: recibe la matriz y devuelve `WardrobeGap`s con descripción concreta ("chaqueta de cuero negra, corte regular"), motivo, looks que desbloquea y marcas de referencia lujo/asequible filtradas por país, moneda y presupuesto.
+- La matriz se recorre por **escenarios** (`estilo × banda térmica`), no por celdas sueltas: un hueco sólo es un hueco si impide vestirse para algo concreto, y el escenario es lo que nombra ese algo. Los estilos salen del perfil y las dos bandas caen a los dos lados del umbral de capa, porque es ahí donde aparece la brecha de abrigo.
+- Lo que desbloquea una prenda se mide **metiéndola en el clóset y volviendo a pasar el motor**, y se cuenta sobre el **núcleo** del look (base + calzado). Contar el conjunto entero diría que una bufanda desbloquea el clóset completo, porque cambia todos los conjuntos sin crear ninguna combinación nueva. Un abrigo, que tampoco crea combinaciones, se justifica por los puntos de nota que gana cuando la temperatura lo pide.
+- **Un slot vacío se propone aunque medirlo dé cero.** Con el clóset a medias ninguna prenda suelta desbloquea nada —hacen falta las tres a la vez— y aplicar la medida literalmente diría que no hay nada que comprar justo cuando falta todo.
+- El LLM solo prioriza y redacta: recibe la matriz y devuelve `WardrobeGap`s con descripción concreta ("chaqueta de cuero negra, corte regular"), motivo, looks que desbloquea y marcas de referencia lujo/asequible filtradas por país, moneda y presupuesto. Como en la Fase 4, **el modelo sólo devuelve texto**: el slot, el tipo, el color, la formalidad y cuántos conjuntos desbloquea son medidas del motor, y las candidatas viajan como ids cortos `h1..hN` declarados como enum en runtime.
 - Página **Qué comprar** con las brechas priorizadas; marcar como comprada abre el alta de prenda precargada.
+- **La cobertura se ve gratis.** `GET /api/wardrobe-gaps/coverage` es determinista y no llama a nadie, así que la página enseña qué escenarios no cubres antes de que decidas pagar la redacción.
+- **Repetir el análisis sobre un clóset que no cambió no vuelve a pagarse**: la lista guardada trae la huella de su entrada y se reaplica. Es lo contrario que los looks, donde cada pulsación es una tanda nueva, porque una lista de la compra sobre el mismo clóset daría exactamente lo mismo.
+- Descartar una brecha no la oculta: el siguiente análisis **no vuelve a proponerla**. Y un análisis nuevo reemplaza lo pendiente pero **conserva lo comprado y lo descartado**, que son decisiones del usuario y no resultados.
 - No se promete un número fijo de compras: cada sugerencia debe explicar qué desbloquea, qué supuestos usa y por qué tiene prioridad. Las marcas son referencias, no disponibilidad ni precio garantizados.
 - **Verificar:** con un clóset de 5–6 prendas sugiere brechas coherentes con tu país y presupuesto, y cada una explica qué desbloquea. El resultado es vacío si el clóset ya tiene cobertura suficiente.
 
@@ -393,7 +416,28 @@ Cada fase entrega algo usable y verificable en escritorio **y** móvil. No se pa
 - Confirmación de costo antes de generar, cuota transaccional y registro en `AiUsageLog`. Se guarda como `OutfitRender` con modelo, calidad, tamaño y prompt versionado.
 - **Verificar:** el render se parece razonablemente al look, se identifica como generado por IA, queda guardado junto al outfit y el costo aparece registrado. Un error o rechazo no rompe la ficha determinista.
 
-### ☐ Fase 7 — PWA, control de gasto y despliegue
+### ☐ Fase 7 — "¿Me lo compro?" (evaluar una prenda antes de comprarla)
+
+La Fase 5 dice qué te falta en abstracto; ésta responde la pregunta concreta que se hace de pie en la tienda: fotografías la camisa verde que tienes en la mano y el sistema dice si encaja en tu clóset y cuántas combinaciones abre. La diferencia con la Fase 5 es que ahí la prenda es **hipotética** —un tipo del catálogo con un color versátil— y aquí es la prenda real que estás mirando, con su color y su corte de verdad.
+
+- **La prenda candidata _es_ un `Garment`**, con `ownership = CONSIDERED`. Eso regala, sin escribir nada: la subida multipart con compresión y WebP, la miniatura, la lectura autenticada por `GET /api/media`, el etiquetado por visión completo con su idempotencia y su reuso gratis, y el formulario de confirmación para cuando la compres. **Que no se cuele en un look no se comprueba, se hace imposible, en dos barreras independientes**: `GarmentsService.list` es el único sitio donde se lee el clóset y sus dos consumidores —el motor y la cobertura— lo llaman sin filtros, así que el default `ownership: 'OWNED'` los deja ciegos a las candidatas; y además una candidata vive en `SUGGESTED`, y el motor sólo usa `CONFIRMED`. Consecuencia asumida: toda lectura nueva del clóset tiene que pasar por `GarmentsService.list`.
+- No se toca `GarmentStatus`: ése es el eje de _disponibilidad de ropa que posees_, y meter "no la tengo" entre `LAUNDRY` y `ARCHIVED` lo volvería ambiguo. El valor se llama `CONSIDERED` y no `CANDIDATE` porque en este código "candidato" ya significa **conjunto puntuado por el motor**.
+- **La subida y el etiquetado no se reimplementan**: se usan `POST /api/garments/draft` (con `ownership`), `POST /api/garments/:id/photos` y `POST /api/garments/:id/tagging` tal como están, con las mismas hasta 4 fotos y la portada primero. Son **dos llamadas de IA y dos pasos reales** que la UI nombra por separado; si la segunda falla, la primera —ya pagada— no se repite.
+- **La medición reutiliza el motor, no lo reimplementa.** `runScenario(input, spec, extra)` ya es literalmente "mete esta prenda en el clóset y vuelve a pasar el motor", y es lo que usa la Fase 5. La cuenta de la diferencia vive hoy sin exportar dentro de las hipótesis: se **extrae** a un `measureGarmentImpact` compartido, porque cuántos conjuntos abre una prenda no puede tener dos versiones. Y la candidata se clona con `taggingStatus: 'CONFIRMED'` y `status: 'ACTIVE'` antes de medirla, por la misma razón que la prenda hipotética de la Fase 5 nace confirmada: sin eso las reglas duras la descartan y **la medición daría siempre cero**.
+- **Antes de medir, la UI muestra y permite corregir los atributos detectados** (tipo, slot, color, estampado, material, corte, formalidad y clima). La candidata sigue siendo `CONSIDERED` y no entra al clóset aunque el usuario confirme esos datos; la copia temporal usada por `measureGarmentImpact` es la que se clona como `CONFIRMED` y `ACTIVE`. Cualquier corrección cambia la firma de entrada y obliga a recalcular la medición.
+- **Se miden y se muestran dos números, no uno.** `unlockedOutfitsEstimate` cuenta **núcleos** nuevos (base + calzado), así que una chaqueta o una bufanda miden 0 aunque sirvan; `outfitsUsingItEstimate` cuenta los conjuntos en los que la prenda entra. "Entra en 9 conjuntos, 3 de ellos imposibles sin ella" es la respuesta honesta a "cuántas combinaciones puedo hacer"; sólo el primer número convertiría cualquier abrigo en un "no te sirve".
+- **El veredicto lo decide el código, no el modelo**, con reglas declarativas y la primera que acierta: un color o un tipo que el usuario evita → no recomendada, porque eso lo declaró él; coincide con una brecha `OPEN` → recomendada; cubre un escenario que hoy no cubres → recomendada; abre núcleos → recomendada; sube la nota del mejor conjunto por encima del umbral → recomendada, que es la rama por la que se justifican la capa y el abrigo; duplica algo que ya tienes sin aportar nada → no recomendada, diciendo cuál; resto → opcional, "cómprala si te gusta, no te desbloquea nada". El umbral es **el mismo `minScoreGainPoints`** de la Fase 5, importado y no copiado: duplicarlo dejaría que las dos fases discreparan sobre la misma chaqueta.
+- **La duplicación también se determina en código**, nunca por el LLM: se considera duplicada cuando coincide el tipo normalizado (o la familia de duplicado del catálogo), el slot, la familia de color y la banda de formalidad, y no aporta ningún núcleo, escenario ni mejora de puntuación por encima de `minScoreGainPoints`. El servidor calcula y devuelve `duplicateGarmentIds` para explicar cuál prenda existente provoca el veredicto.
+- **El modelo sólo redacta**, como en las Fases 4 y 5: recibe el veredicto ya decidido y escribe el titular, la explicación y hasta tres notas de cómo combinarla. Si el veredicto es negativo, el prompt le prohíbe darle la vuelta. Las prendas con las que la empareja viajan como ids cortos `g1..gN` declarados como enum en runtime y el servidor las vuelve a resolver, así que no puede sugerirte combinarla con ropa que no tienes.
+- **Se cruza con el análisis de vacíos** por tipo de prenda y familia de color, y lo dice explícito ("cubre la chaqueta negra que te falta"). Los conflictos se detectan con las funciones que ya existen: la exclusión por color evitado ya está escrita para aplicarse a un color que todavía no está en el clóset.
+- **La medición se ve gratis** —determinista, sin llamar a nadie— y **re-evaluar sobre un clóset que no cambió no vuelve a pagarse**: `analysisSnapshot` contiene la firma de los atributos corregidos de la candidata, sus imágenes y `taggingVersion`, las prendas `OWNED` confirmadas y activas, el perfil y sus preferencias, el clima/escenario, el estado de las brechas, `measureVersion` y `engineVersion`. Si cambia cualquiera de esos datos se invalida la respuesta guardada; `promptVersion` y `modelUsed` también identifican la redacción almacenada. Es la regla de la Fase 5 y no la de los looks, porque la misma prenda sobre el mismo clóset da exactamente la misma respuesta.
+- **Sin atributos no se llama al segundo modelo**: si de la foto no sale una prenda (`usableForTagging: false`) o el clóset no tiene ninguna prenda confirmada, se devuelve el diagnóstico y no se gasta nada.
+- **Los datos insuficientes no producen un falso rechazo**: si `usableForTagging: false` o no hay prendas propias confirmadas, el resultado usa `verdict = CONDITIONAL`, con un `verdictReason` explícito (`UNUSABLE_IMAGE` o `NO_CONFIRMED_WARDROBE`), sin números inventados y sin llamar al modelo de redacción. La UI explica qué falta para poder evaluar y permite reintentar cuando corresponda.
+- El historial se conserva: marcar "ya la compré" o "descartada" son **decisiones del usuario**, no resultados, y una lista de prendas que valoraste se consulta días después. Es lo contrario que la página de looks, que enseña una tanda.
+- Página: **pestaña en "Qué comprar"**, con `?tab=evaluar` para abrirla directo desde el celular, sin entrada nueva de menú. "Ya la compré" abre el diálogo de la prenda **que ya existe**; sólo al confirmar correctamente se ejecuta la transición atómica `Garment.ownership = OWNED`, `Garment.status = ACTIVE`, `Garment.taggingStatus = CONFIRMED`, `PurchaseAdvice.status = PURCHASED` y `resolvedAt`. Si se cancela, la candidata sigue `CONSIDERED` y el advice sigue `OPEN`. Sin porcentaje de progreso: los pasos reales son "subiendo 2 de 3", "analizando la foto" y "midiendo tu clóset".
+- **Verificar:** subes la foto de una camisa verde que no tienes y sale catalogada, puedes corregir sus atributos antes de medirla, y aparece el veredicto con los dos números; volver a pulsar sin cambiar nada no sube el gasto del mes, pero cambiar un atributo, una prenda propia o el perfil invalida la firma; confirmar una prenda del clóset sí abre una llamada nueva; algo casi igual a lo que ya tienes sale no recomendada diciendo cuál duplica; una prenda de un color que evitas sale no recomendada por eso; una foto que no es ropa deja el `AiJob(TAGGING)` en `FAILED`, la candidata sin atributos evaluables y no paga la segunda llamada; la candidata **no aparece en ningún look ni cuenta como cobertura** hasta que pulsas "Ya la compré" y la confirmas; otro usuario recibe 404 sobre un veredicto ajeno. Todo a 1440 px y a 390 px.
+
+### ☐ Fase 8 — PWA, control de gasto y despliegue
 
 - `@angular/pwa`: manifest, iconos, service worker, prompt de instalación.
 - Throttling estricto en los endpoints de IA + techo de gasto mensual por usuario usando reserva transaccional y `AiUsageLog` (corta **antes** de llamar a OpenAI). Esto ya existe funcionalmente desde la Fase 0/3; aquí se endurece.
@@ -419,6 +463,7 @@ Los tres aceptan imagen y Structured Outputs. La visión usa `gpt-5.6-luna` con 
 - Etiquetado por visión: una imagen por prenda cuando sea suficiente, con `detail` elegido por precisión/costo. Si se reetiqueta una prenda, se registra el motivo y se conserva el resultado anterior.
 - Estilista: solo texto (las prendas de los mejores candidatos, no el clóset entero), con Structured Outputs. La Capa 1 reduce tokens, pero el costo real se calcula desde el usage devuelto por la API. El enum de prendas está topado en 40 (`maxGarmentsInEnum`), así que un armario de 300 prendas cuesta lo mismo que uno de 40.
 - Render de imagen: modelo de imagen configurable y detrás de confirmación explícita. El costo depende de modelo, tamaño, calidad y tokens de imágenes de entrada; no se fija un rango universal en este documento.
+- Evaluar una prenda antes de comprarla (Fase 7) son **dos llamadas** sobre la misma prenda: la visión con `OPENAI_VISION_MODEL` para catalogarla y una de sólo texto para redactar el veredicto, con la medición del motor ya resuelta. Esa segunda usa `OPENAI_STYLIST_MODEL` y no una variable propia: es la misma tarea que el estilista, y otra variable sólo añadiría un sitio donde desincronizar el precio.
 - Referencias oficiales a verificar antes de implementar: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [imágenes y visión](https://developers.openai.com/api/docs/guides/images-vision), [generación y edición de imágenes](https://developers.openai.com/api/docs/guides/image-generation), [catálogo de modelos](https://developers.openai.com/api/docs/models).
 
 ## Riesgos y cosas a vigilar
@@ -432,6 +477,7 @@ Los tres aceptan imagen y Structured Outputs. La visión usa `gpt-5.6-luna` con 
 7. **Privacidad** — fotos, medidas y tono de piel requieren storage privado, eliminación de EXIF, acceso autenticado, exportación/eliminación y política de retención.
 8. **Sesgo corporal o de género** — no inferir género, peso o complexión desde imágenes; usar datos proporcionados por el usuario y reglas blandas de comodidad/ajuste.
 9. **Marcas y precios desactualizados** — las marcas son referencias filtradas por país, moneda y presupuesto; no se presentan como disponibilidad o precio actual sin una fuente externa incorporada en una fase posterior.
+10. **Una foto de tienda no es un flat-lay.** Es el riesgo 4 aplicado a la Fase 7 y ahí duele más: percha, luz mala y fondo cargado degradan el color y el material, y el veredicto hereda ese error sin avisar. La UI lo advierte y el usuario puede corregir los atributos antes de medir.
 
 ## Convenciones (de tu CLAUDE.md global + `journal`)
 

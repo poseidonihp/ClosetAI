@@ -8,3 +8,4 @@ export * from './vision';
 export * from './garment';
 export * from './stylist';
 export * from './outfit';
+export * from './gaps';
