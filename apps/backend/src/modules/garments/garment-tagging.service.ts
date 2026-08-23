@@ -43,6 +43,8 @@ const alreadyTaggedMessage =
 const unavailableMessage =
   'El etiquetado por IA no está disponible: falta configurar OPENAI_API_KEY en el servidor.';
 const unexpectedErrorMessage = 'No se pudo etiquetar la prenda. Puedes reintentarlo.';
+const consideredGarmentMessage =
+  'Esta prenda todavía la estás pensando comprar. Márcala como comprada para que entre al clóset.';
 
 /** Prefijo de la clave de idempotencia. Fija el tipo de job y su versión. */
 const idempotencyPrefix = 'tagging';
@@ -114,6 +116,9 @@ export class GarmentTaggingService {
   /**
    * Guarda las correcciones del usuario y da el etiquetado por bueno. A partir
    * de aquí la prenda está `CONFIRMED` y el motor puede usarla.
+   *
+   * Una candidata de la Fase 7 no puede pasar por aquí: confirmarla la metería en
+   * los looks de una prenda que todavía no tienes. Su transición es "ya la compré".
    * @param {string} userId - Usuario autenticado.
    * @param {string} garmentId - Prenda a confirmar.
    * @param {UpdateGarment} dto - Atributos finales tal como los dejó el usuario.
@@ -121,6 +126,9 @@ export class GarmentTaggingService {
    */
   async confirm(userId: string, garmentId: string, dto: UpdateGarment): Promise<Garment> {
     const current = await this._garments.requireOwned(userId, garmentId);
+    if (current.ownership === 'CONSIDERED') {
+      throw new BadRequestException(consideredGarmentMessage);
+    }
     if (dto.garmentTypeId) {
       await this._garmentTypes.requireById(dto.garmentTypeId);
     }

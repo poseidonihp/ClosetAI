@@ -1,0 +1,38 @@
+.purchase-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.purchase-intro .section-hint + .section-hint {
+  margin-top: 6px;
+}
+
+.skeleton-card {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--qp-line);
+  border-radius: 14px;
+  background: var(--qp-bg-soft);
+}
+
+.purchase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.purchase-usage {
+  margin: 4px 0 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--qp-line);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--qp-mute);
+}
+
+@media (max-width: 639px) {
+  .purchase-intro .pill {
+    width: 100%;
+    justify-content: center;
+  }
+}

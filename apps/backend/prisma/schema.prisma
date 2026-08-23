@@ -5,7 +5,9 @@
 // Fase 4: looks del estilista (Outfit + OutfitItem) y su feedback, que es lo
 // primero que sí conviene guardar porque hay narrativa pagada detrás.
 // Fase 5: WardrobeGap, las brechas del clóset con su prioridad y su estado.
-// OutfitRender llega en la Fase 6.
+// Fase 6: OutfitRender, el render visual del look.
+// Fase 7: PurchaseAdvice y Garment.ownership, la prenda que todavía estás
+// pensando comprar y el veredicto sobre ella.
 
 generator client {
   provider      = "prisma-client-js"
@@ -31,14 +33,15 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  refreshTokens  RefreshToken[]
-  aiJobs         AiJob[]
-  aiUsageLogs    AiUsageLog[]
-  styleProfile   StyleProfile?
-  garments       Garment[]
-  outfits        Outfit[]
-  outfitFeedback OutfitFeedback[]
-  wardrobeGaps   WardrobeGap[]
+  refreshTokens   RefreshToken[]
+  aiJobs          AiJob[]
+  aiUsageLogs     AiUsageLog[]
+  styleProfile    StyleProfile?
+  garments        Garment[]
+  outfits         Outfit[]
+  outfitFeedback  OutfitFeedback[]
+  wardrobeGaps    WardrobeGap[]
+  purchaseAdvices PurchaseAdvice[]
 
   @@map("users")
 }
@@ -77,6 +80,7 @@ enum AiJobKind {
   STYLING
   GAP_ANALYSIS
   RENDER
+  PURCHASE_ADVICE
 }
 
 enum AiJobStatus {
@@ -108,12 +112,13 @@ model AiJob {
   createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  usage          AiUsageLog[]
-  taggedGarments Garment[]      @relation("GarmentTaggingJob")
-  outfits        Outfit[]       @relation("OutfitStylingJob")
-  wardrobeGaps   WardrobeGap[]  @relation("WardrobeGapAnalysisJob")
-  outfitRenders  OutfitRender[] @relation("OutfitRenderJob")
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usage           AiUsageLog[]
+  taggedGarments  Garment[]        @relation("GarmentTaggingJob")
+  outfits         Outfit[]         @relation("OutfitStylingJob")
+  wardrobeGaps    WardrobeGap[]    @relation("WardrobeGapAnalysisJob")
+  outfitRenders   OutfitRender[]   @relation("OutfitRenderJob")
+  purchaseAdvices PurchaseAdvice[] @relation("PurchaseAdviceJob")
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
@@ -279,6 +284,15 @@ enum GarmentStatus {
   ARCHIVED
 }
 
+/// Si la prenda ya es tuya o todavía la estás pensando. Es un eje **aparte** de
+/// `GarmentStatus`, que habla de la disponibilidad de ropa que ya posees. Una
+/// prenda `CONSIDERED` no entra en ningún look ni cuenta como cobertura: es la
+/// candidata de la Fase 7.
+enum GarmentOwnership {
+  OWNED
+  CONSIDERED
+}
+
 /// PENDING: sin etiquetar. SUGGESTED: borrador de la IA sin revisar.
 /// CONFIRMED: revisado por el usuario. FAILED: la visión no pudo etiquetarla y
 /// hay que reintentar o completarla a mano. El motor sólo usa CONFIRMED.
@@ -356,6 +370,38 @@ enum WardrobeGapStatus {
   DISMISSED
 }
 
+/// En qué punto está la evaluación de una prenda que todavía no has comprado.
+enum PurchaseAdviceStatus {
+  OPEN
+  PURCHASED
+  DISMISSED
+}
+
+/// El veredicto. Lo decide el código con reglas declarativas sobre lo que midió
+/// el motor, nunca el modelo, que sólo lo redacta.
+enum PurchaseVerdict {
+  RECOMMENDED
+  CONDITIONAL
+  NOT_RECOMMENDED
+}
+
+/// Qué regla produjo el veredicto. Un veredicto sin su motivo no se puede
+/// auditar: dos "no recomendada" pueden venir de un color que evitas o de una
+/// prenda que ya tienes, y no se arreglan igual.
+enum PurchaseVerdictReason {
+  AVOIDED_COLOR
+  AVOIDED_TYPE
+  MATCHES_GAP
+  COVERS_SCENARIO
+  UNLOCKS_OUTFITS
+  IMPROVES_SCORE
+  DUPLICATE
+  NO_IMPACT
+  UNUSABLE_IMAGE
+  NO_CONFIRMED_WARDROBE
+  PENDING_ATTRIBUTES
+}
+
 // =====================================================================
 // Perfil de estilo
 // =====================================================================
@@ -426,57 +472,63 @@ model GarmentType {
 // =====================================================================
 
 model Garment {
-  id                  String          @id @default(uuid()) @db.Uuid
-  userId              String          @map("user_id") @db.Uuid
+  id                  String           @id @default(uuid()) @db.Uuid
+  userId              String           @map("user_id") @db.Uuid
   name                String
   slot                GarmentSlot
-  garmentTypeId       String          @map("garment_type_id") @db.Uuid
-  primaryColorHex     String          @map("primary_color_hex")
-  primaryColorName    String          @map("primary_color_name")
-  secondaryColorHex   String?         @map("secondary_color_hex")
-  pattern             GarmentPattern  @default(SOLID)
-  patternScale        PatternScale    @default(NONE) @map("pattern_scale")
-  material            GarmentMaterial @default(OTHER)
-  fit                 FitPreference   @default(REGULAR)
+  garmentTypeId       String           @map("garment_type_id") @db.Uuid
+  primaryColorHex     String           @map("primary_color_hex")
+  primaryColorName    String           @map("primary_color_name")
+  secondaryColorHex   String?          @map("secondary_color_hex")
+  pattern             GarmentPattern   @default(SOLID)
+  patternScale        PatternScale     @default(NONE) @map("pattern_scale")
+  material            GarmentMaterial  @default(OTHER)
+  fit                 FitPreference    @default(REGULAR)
   /// 1 = muy casual, 5 = muy formal.
-  formality           Int             @default(3)
+  formality           Int              @default(3)
   seasons             Season[]
-  weatherMinC         Int?            @map("weather_min_c")
-  weatherMaxC         Int?            @map("weather_max_c")
+  weatherMinC         Int?             @map("weather_min_c")
+  weatherMaxC         Int?             @map("weather_max_c")
   brand               String?
   /// Marca propuesta por la visión (Fase 3). Nunca sobrescribe `brand`.
-  brandGuess          String?         @map("brand_guess")
+  brandGuess          String?          @map("brand_guess")
   size                String?
   /// Respuesta cruda del modelo de visión, para reprocesar sin volver a pagar.
-  aiAttributes        Json?           @map("ai_attributes")
+  aiAttributes        Json?            @map("ai_attributes")
   /// Autoevaluación por atributo del modelo (HIGH/MEDIUM/LOW). Es una etiqueta
   /// declarada por el modelo, no una probabilidad calibrada: sólo marca qué
   /// conviene revisar, nunca se muestra como porcentaje.
-  attributeConfidence Json?           @map("attribute_confidence")
-  taggingVersion      String?         @map("tagging_version")
-  taggedAt            DateTime?       @map("tagged_at") @db.Timestamptz(3)
-  taggingStatus       TaggingStatus   @default(PENDING) @map("tagging_status")
+  attributeConfidence Json?            @map("attribute_confidence")
+  taggingVersion      String?          @map("tagging_version")
+  taggedAt            DateTime?        @map("tagged_at") @db.Timestamptz(3)
+  taggingStatus       TaggingStatus    @default(PENDING) @map("tagging_status")
   /// Último job de visión de esta prenda: da estado, intentos y costo a la UI.
-  taggingJobId        String?         @map("tagging_job_id") @db.Uuid
+  taggingJobId        String?          @map("tagging_job_id") @db.Uuid
   /// Atributos que el usuario tocó a mano. Un reetiquetado automático los
   /// respeta; sólo los pisa si el usuario lo autoriza explícitamente.
   /// El default va declarado porque la columna se añadió NOT NULL sobre una
   /// tabla con filas: sin él, el esquema y la base quedarían desalineados y el
   /// siguiente `migrate dev` generaría una migración fantasma.
-  manualFields        String[]        @default([]) @map("manual_fields")
-  status              GarmentStatus   @default(ACTIVE)
-  wearCount           Int             @default(0) @map("wear_count")
-  lastWornAt          DateTime?       @map("last_worn_at") @db.Timestamptz(3)
-  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  manualFields        String[]         @default([]) @map("manual_fields")
+  status              GarmentStatus    @default(ACTIVE)
+  /// Eje aparte de `status`. El default deja ciegas a las candidatas a todo lo
+  /// que lee el clóset sin pedirlas: el motor y la cobertura llaman a
+  /// `GarmentsService.list` sin filtros y por tanto sólo ven lo `OWNED`.
+  ownership           GarmentOwnership @default(OWNED)
+  wearCount           Int              @default(0) @map("wear_count")
+  lastWornAt          DateTime?        @map("last_worn_at") @db.Timestamptz(3)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  garmentType GarmentType    @relation(fields: [garmentTypeId], references: [id])
-  images      GarmentImage[]
-  taggingJob  AiJob?         @relation("GarmentTaggingJob", fields: [taggingJobId], references: [id], onDelete: SetNull)
-  outfitItems OutfitItem[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  garmentType    GarmentType     @relation(fields: [garmentTypeId], references: [id])
+  images         GarmentImage[]
+  taggingJob     AiJob?          @relation("GarmentTaggingJob", fields: [taggingJobId], references: [id], onDelete: SetNull)
+  outfitItems    OutfitItem[]
+  purchaseAdvice PurchaseAdvice?
 
   @@index([userId, status])
+  @@index([userId, ownership])
   @@index([userId, slot])
   @@index([garmentTypeId])
   @@index([taggingJobId])
@@ -709,4 +761,63 @@ model WardrobeGap {
   @@index([garmentTypeId])
   @@index([jobId])
   @@map("wardrobe_gaps")
+}
+
+// =====================================================================
+// ¿Me lo compro? (Fase 7)
+// =====================================================================
+
+/// El veredicto sobre una prenda que todavía estás pensando comprar.
+///
+/// La prenda candidata **es un `Garment`** con `ownership = CONSIDERED`: eso
+/// regala la subida, la miniatura, la lectura autenticada y el etiquetado por
+/// visión sin escribir nada. Aquí sólo vive lo que la evaluación añade.
+///
+/// `verdict` y los números los decide el servidor midiendo con el motor; el
+/// modelo escribe `headline`, `reason` y `stylingNotes` sobre un veredicto que ya
+/// está tomado. Por eso no hay columna de confianza ni de precio.
+///
+/// Se persiste y se conserva: marcar "ya la compré" o "descartada" son
+/// decisiones del usuario, y una prenda que valoraste se consulta días después.
+model PurchaseAdvice {
+  id                      String                @id @default(uuid()) @db.Uuid
+  userId                  String                @map("user_id") @db.Uuid
+  /// Único: una candidata tiene como mucho un veredicto vigente.
+  garmentId               String                @unique @map("garment_id") @db.Uuid
+  status                  PurchaseAdviceStatus  @default(OPEN)
+  verdict                 PurchaseVerdict
+  verdictReason           PurchaseVerdictReason @map("verdict_reason")
+  headline                String
+  reason                  String
+  stylingNotes            String[]              @map("styling_notes")
+  /// Núcleos (base + calzado) que aparecen sólo si compras la prenda.
+  unlockedOutfitsEstimate Int                   @map("unlocked_outfits_estimate")
+  /// Conjuntos en los que el motor la usa, nuevos o no.
+  outfitsUsingItEstimate  Int                   @map("outfits_using_it_estimate")
+  /// Puntos que gana el mejor conjunto del escenario que más la aprovecha.
+  scoreGainPoints         Int                   @map("score_gain_points")
+  /// Prendas propias con las que el motor la combinó y el modelo la empareja.
+  pairedGarmentIds        String[]              @map("paired_garment_ids") @db.Uuid
+  /// Prendas propias que hacen el mismo papel. Vacío si no duplica nada.
+  duplicateGarmentIds     String[]              @map("duplicate_garment_ids") @db.Uuid
+  /// Brecha `OPEN` que esta prenda cubre, si coincide con alguna.
+  matchedGapId            String?               @map("matched_gap_id") @db.Uuid
+  measureVersion          String                @map("measure_version")
+  promptVersion           String                @map("prompt_version")
+  modelUsed               String?               @map("model_used")
+  /// Medición exacta y huella de la entrada que produjo este veredicto.
+  analysisSnapshot        Json                  @map("analysis_snapshot")
+  /// Job que pagó esta redacción. Da modelo, costo e intentos a la UI.
+  jobId                   String?               @map("job_id") @db.Uuid
+  resolvedAt              DateTime?             @map("resolved_at") @db.Timestamptz(3)
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  garment Garment @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+  job     AiJob?  @relation("PurchaseAdviceJob", fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([jobId])
+  @@map("purchase_advices")
 }

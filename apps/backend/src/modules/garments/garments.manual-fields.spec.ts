@@ -36,6 +36,7 @@ function makeRow(overrides: Partial<GarmentRowWithRelations> = {}): GarmentRowWi
     taggingJobId: null,
     manualFields: [],
     status: 'ACTIVE',
+    ownership: 'OWNED',
     wearCount: 0,
     lastWornAt: null,
     createdAt: new Date('2026-08-01T10:00:00.000Z'),

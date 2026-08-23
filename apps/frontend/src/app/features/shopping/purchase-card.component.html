@@ -1,0 +1,239 @@
+<article class="purchase-card" data-test="div-purchasecard-page">
+  <header class="purchase-head">
+    @if (cover(); as photo) {
+      <img class="purchase-thumb" [src]="photo.thumbUrl" alt="Foto de la prenda" loading="lazy" />
+    } @else {
+      <div class="purchase-thumb purchase-thumb-empty" aria-hidden="true">?</div>
+    }
+
+    <div class="min-w-0">
+      <div class="uplabel">
+        {{ labels.garmentSlot[garment().slot] }} · {{ garment().garmentTypeName }} ·
+        {{ formalityLabel(garment().formality) }}
+      </div>
+      <h3 class="serif purchase-title">{{ garment().name }}</h3>
+      <div class="purchase-badges">
+        <span
+          class="purchase-swatch"
+          [style.background]="garment().primaryColorHex"
+          aria-hidden="true"
+        ></span>
+        <span class="badge">{{ garment().primaryColorName }}</span>
+        @if (verdict(); as decision) {
+          <span class="badge badge-strong" [class]="verdictClass()">
+            {{ labels.purchaseVerdict[decision] }}
+          </span>
+        }
+        @if (status() !== 'OPEN') {
+          <span class="badge">{{ labels.purchaseAdviceStatus[status()] }}</span>
+        }
+      </div>
+    </div>
+  </header>
+
+  <div class="purchase-body">
+    @if (waitingLabel(); as waiting) {
+      <output class="purchase-waiting" data-test="div-waiting-page">
+        <lucide-icon [name]="iconLoader" class="h-4 w-4 animate-spin" aria-hidden="true" />
+        <span>{{ waiting }}</span>
+      </output>
+    }
+
+    @if (garment().taggingStatus === 'PENDING') {
+      <p class="purchase-hint" data-test="div-untagged-page">
+        Todavía no tiene atributos. Ábrela, etiquétala con IA o complétalos a mano y podrás medirla
+        contra tu clóset.
+      </p>
+    } @else if (!garment().tagging.usableForTagging) {
+      <p class="purchase-hint" data-test="div-unusable-page">
+        De sus fotos no salió ninguna prenda{{
+          garment().tagging.unusableReason ? ': ' + garment().tagging.unusableReason : ''
+        }}. Cámbialas o completa los atributos a mano.
+      </p>
+    }
+
+    @if (showsPerson()) {
+      <p class="purchase-hint" data-test="div-person-page">
+        En sus fotos aparece una persona. Sólo se usan para catalogar la prenda.
+      </p>
+    }
+
+    @if (verdictReason(); as reason) {
+      <p class="purchase-reasonlabel">{{ labels.purchaseVerdictReason[reason] }}</p>
+    } @else {
+      <p class="purchase-hint" data-test="div-notmeasured-page">
+        Todavía no la has medido contra tu clóset. Medirla es gratis y no llama a ninguna IA.
+      </p>
+    }
+
+    @if (numbersLabel(); as numbers) {
+      <p class="purchase-numbers" data-test="div-numbers-page">{{ numbers }}</p>
+    }
+
+    @if (impact(); as measured) {
+      @if (measured.newlyCoveredScenarioLabels.length > 0) {
+        <p class="purchase-hint">
+          Con ella podrías vestirte para {{ measured.newlyCoveredScenarioLabels.join(', ') }}.
+        </p>
+      }
+      @if (measured.scoreGainPoints > 0) {
+        <p class="purchase-hint">
+          Sube {{ measured.scoreGainPoints }} punto(s) la nota de tu mejor conjunto.
+        </p>
+      }
+    }
+
+    <!-- La nota del cálculo sólo aparece cuando no hay números: si los hay, ya los
+    cuenta la línea de arriba y repetirlos no añade nada. -->
+    @if (measurement(); as measured) {
+      @if (measured.impact === null && measured.note) {
+        <p class="purchase-note" data-test="div-measurenote-page">{{ measured.note }}</p>
+      }
+    }
+
+    @if (advice(); as verdictText) {
+      <div class="purchase-verdict" data-test="div-verdict-page">
+        <p class="purchase-headline">{{ verdictText.headline }}</p>
+        <p class="purchase-reason">{{ verdictText.reason }}</p>
+
+        @if (verdictText.stylingNotes.length > 0) {
+          <p class="uplabel purchase-label">Cómo combinarla</p>
+          <ul class="purchase-list">
+            @for (note of verdictText.stylingNotes; track note) {
+              <li>{{ note }}</li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
+    @if (pairedGarments().length > 0) {
+      <p class="uplabel purchase-label">Combina con lo que ya tienes</p>
+      <ul class="purchase-chips">
+        @for (paired of pairedGarments(); track paired.id) {
+          <li class="purchase-chip">
+            <span class="purchase-swatch" [style.background]="paired.colorHex"></span>
+            {{ paired.name }}
+          </li>
+        }
+      </ul>
+    }
+
+    @if (duplicateGarments().length > 0) {
+      <p class="uplabel purchase-label">Se parece a lo que ya tienes</p>
+      <ul class="purchase-chips">
+        @for (duplicate of duplicateGarments(); track duplicate.id) {
+          <li class="purchase-chip purchase-chip-warn">
+            <span class="purchase-swatch" [style.background]="duplicate.colorHex"></span>
+            {{ duplicate.name }}
+          </li>
+        }
+      </ul>
+    }
+
+    @if (advice(); as verdictText) {
+      <p class="purchase-source">
+        Los números los midió el motor sobre tu clóset. El texto lo redactó
+        {{ verdictText.modelUsed ?? 'la IA' }} sobre ese veredicto, sin poder cambiarlo.
+      </p>
+    }
+  </div>
+
+  <footer class="purchase-actions">
+    <!-- Una prenda ya comprada vive en el clóset: se edita y se borra desde allí,
+    y aquí sólo queda como historial de lo que decidiste. -->
+    @if (status() === 'PURCHASED') {
+      <a class="pill" data-test="action-goclosetbought-page" routerLink="/closet">
+        Verla en el clóset
+      </a>
+      <button
+        type="button"
+        class="pill pill-quiet"
+        data-test="action-forgetcandidate-page"
+        [disabled]="busy()"
+        (click)="forgotten.emit()"
+      >
+        Quitarla de esta lista
+      </button>
+    } @else {
+      <button
+        type="button"
+        class="pill"
+        data-test="action-editcandidate-page"
+        [disabled]="busy()"
+        (click)="edited.emit()"
+      >
+        Revisar atributos
+      </button>
+    }
+
+    @if (status() === 'OPEN') {
+      <button
+        type="button"
+        class="pill"
+        data-test="action-measure-page"
+        [disabled]="busy()"
+        (click)="measured.emit()"
+      >
+        @if (isMeasuring()) {
+          <lucide-icon [name]="iconLoader" class="h-4 w-4 animate-spin" aria-hidden="true" />
+        }
+        {{ isMeasuring() ? 'Midiendo…' : 'Medir mi clóset · gratis' }}
+      </button>
+      <button
+        type="button"
+        class="pill pill-solid"
+        data-test="action-evaluate-page"
+        [disabled]="busy() || !evaluationAvailable() || !canEvaluate()"
+        (click)="evaluated.emit()"
+      >
+        @if (isEvaluating()) {
+          <lucide-icon [name]="iconLoader" class="h-4 w-4 animate-spin" aria-hidden="true" />
+        }
+        {{ evaluateLabel() }}
+      </button>
+      <button
+        type="button"
+        class="pill"
+        data-test="action-buycandidate-page"
+        [disabled]="busy()"
+        (click)="purchased.emit()"
+      >
+        Ya la compré
+      </button>
+      @if (advice()) {
+        <button
+          type="button"
+          class="pill pill-quiet"
+          data-test="action-dismisscandidate-page"
+          [disabled]="busy()"
+          (click)="dismissed.emit()"
+        >
+          Descartarla
+        </button>
+      }
+    } @else if (status() === 'DISMISSED') {
+      <button
+        type="button"
+        class="pill"
+        data-test="action-reopencandidate-page"
+        [disabled]="busy()"
+        (click)="reopened.emit()"
+      >
+        Volver a considerarla
+      </button>
+    }
+
+    @if (status() !== 'PURCHASED') {
+      <button
+        type="button"
+        class="pill pill-quiet"
+        data-test="action-removecandidate-page"
+        [disabled]="busy()"
+        (click)="removed.emit()"
+      >
+        Borrar
+      </button>
+    }
+  </footer>
+</article>

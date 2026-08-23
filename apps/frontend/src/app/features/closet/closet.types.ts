@@ -22,3 +22,8 @@ export interface IGarmentPrefill {
   primaryColorName: string;
   formality: number;
 }
+
+/**
+ * Qué es la prenda para el diálogo y, por tanto, qué significa guardarla.
+ */
+export type GarmentDialogMode = 'CLOSET' | 'CANDIDATE' | 'PURCHASE';

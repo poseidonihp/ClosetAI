@@ -3,6 +3,7 @@ import { HexColorSchema } from './color';
 import {
   FitPreferenceEnum,
   GarmentMaterialEnum,
+  GarmentOwnershipEnum,
   GarmentPatternEnum,
   GarmentSlotEnum,
   GarmentStatusEnum,
@@ -86,6 +87,7 @@ export const GarmentSchema = z.object({
   size: z.string().nullable(),
   taggingStatus: TaggingStatusEnum,
   status: GarmentStatusEnum,
+  ownership: GarmentOwnershipEnum,
   wearCount: z.number().int(),
   lastWornAt: z.string().nullable(),
   createdAt: z.string(),
@@ -162,8 +164,14 @@ export type CreateGarment = z.infer<typeof CreateGarmentSchema>;
 export const UpdateGarmentSchema = garmentFields.partial().strict().superRefine(checkWeatherRange);
 export type UpdateGarment = z.infer<typeof UpdateGarmentSchema>;
 
+/**
+ * Filtros del listado. `ownership` se deja **opcional y sin default aquí**: el
+ * default vive en `GarmentsService.list`, que es por donde pasan también las
+ * llamadas internas que nunca tocan este esquema.
+ */
 export const GarmentQuerySchema = z.object({
   status: GarmentStatusEnum.optional(),
   slot: GarmentSlotEnum.optional(),
+  ownership: GarmentOwnershipEnum.optional(),
 });
 export type GarmentQuery = z.infer<typeof GarmentQuerySchema>;

@@ -5,6 +5,27 @@
   gap: 14px;
 }
 
+.shopping-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.shopping-tab {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--qp-line-strong);
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--qp-mute);
+  cursor: pointer;
+}
+
+.shopping-tab-active {
+  border-color: var(--qp-ink);
+  color: var(--qp-ink);
+}
+
 .shopping-body {
   display: flex;
   flex-direction: column;
@@ -126,6 +147,10 @@
 }
 
 @media (max-width: 639px) {
+  .shopping-tabs .shopping-tab {
+    flex: 1;
+    text-align: center;
+  }
   .shopping-head {
     flex-direction: column;
     align-items: stretch;

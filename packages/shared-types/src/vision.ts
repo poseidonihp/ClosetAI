@@ -4,6 +4,7 @@ import {
   AiJobStatusEnum,
   FitPreferenceEnum,
   GarmentMaterialEnum,
+  GarmentOwnershipEnum,
   GarmentPatternEnum,
   GarmentSlotEnum,
   PatternScaleEnum,
@@ -119,9 +120,14 @@ export const GarmentTaggingSchema = z.object({
 });
 export type GarmentTagging = z.infer<typeof GarmentTaggingSchema>;
 
-/** Alta de una prenda vacía que existe sólo para colgarle la foto y etiquetarla. */
+/**
+ * Alta de una prenda vacía que existe sólo para colgarle la foto y etiquetarla.
+ * `ownership` distingue el borrador del clóset del de la Fase 7: la candidata que
+ * todavía estás pensando comprar usa esta misma ruta y no una propia.
+ */
 export const CreateGarmentDraftSchema = z.object({
   name: z.string().max(maxVisionTextLength).nullable().default(null),
+  ownership: GarmentOwnershipEnum.default('OWNED'),
 });
 export type CreateGarmentDraft = z.infer<typeof CreateGarmentDraftSchema>;
 

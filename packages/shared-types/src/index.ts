@@ -10,3 +10,4 @@ export * from './stylist';
 export * from './render';
 export * from './outfit';
 export * from './gaps';
+export * from './purchase';

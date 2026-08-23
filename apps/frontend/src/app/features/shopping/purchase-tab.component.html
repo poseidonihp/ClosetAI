@@ -1,0 +1,126 @@
+<div class="purchase-tab" data-test="div-purchasetab-page">
+  <closet-error-banner [message]="error()" />
+
+  <section class="purchase-intro panel-card">
+    <p class="section-title">Fotografía la prenda que estás mirando</p>
+    <p class="section-hint">
+      Son dos pasos y los dos se dicen: primero la IA la cataloga desde la foto y tú corriges lo que
+      haya visto mal, y después el motor la mete en tu clóset y cuenta cuántos conjuntos aparecen.
+      La medición es gratis; sólo el veredicto redactado cuesta.
+    </p>
+    <p class="section-hint">
+      Mientras no pulses "ya la compré" no entra en ningún look ni cuenta como cobertura.
+    </p>
+    <button
+      type="button"
+      class="pill pill-solid mt-3"
+      data-test="action-newcandidate-page"
+      [disabled]="closetIsEmpty()"
+      (click)="startNew()"
+    >
+      Evaluar una prenda
+    </button>
+  </section>
+
+  @if (closetIsEmpty()) {
+    <closet-empty-state
+      title="Tu clóset está vacío"
+      description="El veredicto se mide contra lo que ya tienes, así que primero hacen falta prendas confirmadas con las que comparar."
+      [icon]="iconShirt"
+    >
+      <a class="pill pill-solid" data-test="action-goclosetbuy-page" routerLink="/closet">
+        Ir al clóset
+      </a>
+    </closet-empty-state>
+  } @else if (loading()) {
+    @for (card of skeletonCards; track card) {
+      <div class="skeleton-card">
+        <closet-skeleton height="24px" width="50%" />
+        <closet-skeleton class="mt-3 block" [rows]="4" height="13px" />
+      </div>
+    }
+  } @else {
+    @if (openCandidates().length > 0) {
+      <section class="purchase-list">
+        <p class="section-title">Las que estás pensando</p>
+        @for (candidate of openCandidates(); track candidate.garment.id) {
+          <closet-purchase-card
+            [candidate]="candidate"
+            [measurement]="measurementOf(candidate)"
+            [busy]="isBusy(candidate)"
+            [busyAction]="busyActionOf(candidate)"
+            [evaluationAvailable]="evaluationAvailable()"
+            (measured)="measure(candidate)"
+            (evaluated)="evaluate(candidate)"
+            (edited)="edit(candidate)"
+            (purchased)="buy(candidate)"
+            (dismissed)="dismiss(candidate)"
+            (reopened)="reopen(candidate)"
+            (removed)="remove(candidate)"
+            (forgotten)="forget(candidate)"
+          />
+        }
+      </section>
+    } @else {
+      <closet-empty-state
+        title="Todavía no has evaluado nada"
+        description="Cuando tengas una prenda delante, fotografíala aquí y sabrás en cuántos conjuntos entra y cuáles son imposibles sin ella."
+        [icon]="iconScan"
+      >
+        <button
+          type="button"
+          class="pill pill-solid"
+          data-test="action-newcandidateempty-page"
+          (click)="startNew()"
+        >
+          Evaluar una prenda
+        </button>
+      </closet-empty-state>
+    }
+
+    @if (resolvedCandidates().length > 0) {
+      <section class="purchase-list">
+        <p class="section-title">Ya decididas</p>
+        <p class="section-hint">
+          Lo que compraste y lo que descartaste se queda aquí: es tu historial de compras, no un
+          resultado que se recalcule.
+        </p>
+        @for (candidate of resolvedCandidates(); track candidate.garment.id) {
+          <closet-purchase-card
+            [candidate]="candidate"
+            [measurement]="measurementOf(candidate)"
+            [busy]="isBusy(candidate)"
+            [busyAction]="busyActionOf(candidate)"
+            [evaluationAvailable]="evaluationAvailable()"
+            (measured)="measure(candidate)"
+            (evaluated)="evaluate(candidate)"
+            (edited)="edit(candidate)"
+            (purchased)="buy(candidate)"
+            (dismissed)="dismiss(candidate)"
+            (reopened)="reopen(candidate)"
+            (removed)="remove(candidate)"
+            (forgotten)="forget(candidate)"
+          />
+        }
+      </section>
+    }
+
+    @if (usage.summary(); as summary) {
+      <p class="purchase-usage" data-test="div-purchaseusage-page">
+        Gasto de IA: {{ summary.committedUsd.toFixed(4) }} de
+        {{ summary.monthlyBudgetUsd.toFixed(2) }} USD este mes.
+        @if (costLabel(); as cost) {
+          El último veredicto costó {{ cost }}.
+        }
+      </p>
+    }
+  }
+</div>
+
+@if (dialog(); as open) {
+  <closet-garment-dialog
+    [garment]="open.candidate?.garment ?? null"
+    [mode]="open.mode"
+    (closed)="closeDialog()"
+  />
+}

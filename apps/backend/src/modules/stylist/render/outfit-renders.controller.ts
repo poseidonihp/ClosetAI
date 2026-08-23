@@ -29,7 +29,6 @@ const renderRequestsPerWindow = 4;
 
 @Controller('stylist/outfits/:outfitId/render')
 export class OutfitRendersController {
-
   /**
    * Inicializa el controlador de renders del look.
    * @constructor

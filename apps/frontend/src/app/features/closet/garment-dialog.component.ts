@@ -47,7 +47,7 @@ import { ErrorBannerComponent } from '../../shared/ui/error-banner.component';
 import { FieldComponent } from '../../shared/ui/field.component';
 import { SubmitButtonComponent } from '../../shared/ui/submit-button.component';
 import { ClosetStore } from './closet.store';
-import type { IGarmentPrefill, IPendingPhoto } from './closet.types';
+import type { GarmentDialogMode, IGarmentPrefill, IPendingPhoto } from './closet.types';
 import { GarmentTaggingPanelComponent } from './garment-tagging-panel.component';
 import { GarmentTypesStore } from './garment-types.store';
 import { compressForUpload } from './image-compression';
@@ -95,6 +95,8 @@ export class GarmentDialogComponent implements OnInit {
   readonly initialFiles = input<readonly File[]>([]);
   /** Valores iniciales del alta. Sólo se aplican cuando no se está editando. */
   readonly prefill = input<IGarmentPrefill | null>(null);
+  /** Qué es esta prenda para el diálogo y qué significa guardarla. */
+  readonly mode = input<GarmentDialogMode>('CLOSET');
 
   readonly closed = output();
 
@@ -152,6 +154,8 @@ export class GarmentDialogComponent implements OnInit {
   private readonly _createdDraft = signal(false);
 
   protected readonly isEdit = computed(() => this.garment() !== null);
+  /** True mientras la prenda siga siendo algo que el usuario está pensando comprar. */
+  protected readonly isCandidate = computed(() => this.mode() !== 'CLOSET');
   protected readonly totalPhotos = computed(() => this.photos().length + this.pending().length);
   protected readonly canAddPhotos = computed(() => this.totalPhotos() < maxGarmentPhotos);
   protected readonly typesBySlot = this._garmentTypes.bySlot;
@@ -163,10 +167,34 @@ export class GarmentDialogComponent implements OnInit {
   });
 
   protected readonly saveLabel = computed(() => {
+    if (this.mode() === 'PURCHASE') {
+      return 'Confirmar compra';
+    }
+    if (this.mode() === 'CANDIDATE') {
+      return 'Guardar y medir';
+    }
     if (this.needsConfirmation()) {
       return 'Confirmar prenda';
     }
     return this.isEdit() ? 'Guardar cambios' : 'Añadir prenda';
+  });
+
+  /** Cabecera del diálogo: dice a qué clóset pertenece lo que se está editando. */
+  protected readonly dialogTitle = computed(() => {
+    if (this.mode() === 'PURCHASE') {
+      return 'Confirmar la compra';
+    }
+    if (this.mode() === 'CANDIDATE') {
+      return this.isEdit() ? 'Revisar la candidata' : 'Evaluar una prenda';
+    }
+    return this.isEdit() ? 'Editar prenda' : 'Nueva prenda';
+  });
+
+  protected readonly dialogSubtitle = computed(() => {
+    if (this.mode() === 'PURCHASE') {
+      return 'Pasa a tu clóset';
+    }
+    return this.mode() === 'CANDIDATE' ? '¿Me lo compro?' : 'Tu clóset';
   });
 
   /**
@@ -227,7 +255,7 @@ export class GarmentDialogComponent implements OnInit {
    */
   protected async requestClose(): Promise<void> {
     const draft = this.current();
-    if (!this._createdDraft() || !draft || !this.needsConfirmation()) {
+    if (this.isCandidate() || !this._createdDraft() || !draft || !this.needsConfirmation()) {
       this.closed.emit();
       return;
     }
@@ -293,7 +321,10 @@ export class GarmentDialogComponent implements OnInit {
     if (existing) {
       return existing;
     }
-    const draft = await this._closet.createDraft(this.form.controls.name.value.trim() || null);
+    const draft = await this._closet.createDraft(
+      this.form.controls.name.value.trim() || null,
+      this.isCandidate() ? 'CONSIDERED' : 'OWNED',
+    );
     this.current.set(draft);
     this._createdDraft.set(true);
     return draft;
@@ -541,7 +572,7 @@ export class GarmentDialogComponent implements OnInit {
         this.errorMessage.set(partialUploadMessage);
         return;
       }
-      this._notifications.success(GarmentDialogComponent._savedMessage(wasDraft, this.isEdit()));
+      this._notifications.success(this._savedMessage(wasDraft));
       this.closed.emit();
     } catch (error) {
       this.errorMessage.set(ApiClient.messageFromError(error));
@@ -557,6 +588,9 @@ export class GarmentDialogComponent implements OnInit {
    */
   private async _persistGarment(): Promise<Garment> {
     const payload = this._buildPayload();
+    if (this.isCandidate()) {
+      return this._persistCandidate(payload);
+    }
     const existing = this.current();
     if (!existing) {
       const created = await this._closet.create(payload);
@@ -572,17 +606,39 @@ export class GarmentDialogComponent implements OnInit {
   }
 
   /**
+   * Guarda la prenda que el usuario está pensando comprar.
+   * @private
+   * @param {CreateGarment} payload - Atributos tal como los dejó el formulario.
+   * @returns {Promise<Garment>}
+   */
+  private async _persistCandidate(payload: CreateGarment): Promise<Garment> {
+    const candidate = await this._ensurePersisted();
+    const saved =
+      this.mode() === 'PURCHASE'
+        ? await this._closet.purchaseCandidate(candidate.id, payload)
+        : await this._closet.update(candidate.id, payload);
+    this._syncPhotos(saved);
+    this._createdDraft.set(false);
+    return saved;
+  }
+
+  /**
    * Mensaje de éxito según lo que acaba de pasar.
    * @private
    * @param {boolean} wasDraft - Si la prenda venía sin confirmar.
-   * @param {boolean} isEdit - Si el diálogo se abrió sobre una prenda existente.
    * @returns {string}
    */
-  private static _savedMessage(wasDraft: boolean, isEdit: boolean): string {
+  private _savedMessage(wasDraft: boolean): string {
+    if (this.mode() === 'PURCHASE') {
+      return 'Ya es tuya: entra en el clóset y cuenta para tus looks';
+    }
+    if (this.mode() === 'CANDIDATE') {
+      return 'Candidata guardada: ya puedes medirla contra tu clóset';
+    }
     if (wasDraft) {
       return 'Prenda confirmada: ya cuenta para tus looks';
     }
-    return isEdit ? 'Prenda actualizada' : 'Prenda añadida';
+    return this.isEdit() ? 'Prenda actualizada' : 'Prenda añadida';
   }
 
   /**

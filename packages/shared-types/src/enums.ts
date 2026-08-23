@@ -13,7 +13,13 @@ import { z } from 'zod';
 // IA
 // =====================================================================
 
-export const AiJobKindEnum = z.enum(['TAGGING', 'STYLING', 'GAP_ANALYSIS', 'RENDER']);
+export const AiJobKindEnum = z.enum([
+  'TAGGING',
+  'STYLING',
+  'GAP_ANALYSIS',
+  'RENDER',
+  'PURCHASE_ADVICE',
+]);
 export type AiJobKind = z.infer<typeof AiJobKindEnum>;
 
 export const AiJobStatusEnum = z.enum(['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED']);
@@ -131,6 +137,14 @@ export type GarmentMaterial = z.infer<typeof GarmentMaterialEnum>;
 
 export const GarmentStatusEnum = z.enum(['ACTIVE', 'LAUNDRY', 'STORED', 'DONATED', 'ARCHIVED']);
 export type GarmentStatus = z.infer<typeof GarmentStatusEnum>;
+
+/**
+ * Si la prenda ya es tuya o todavía la estás pensando. Es un eje **aparte** de
+ * `GarmentStatus`, que habla de la disponibilidad de ropa que ya posees: meter
+ * "no la tengo" entre `LAUNDRY` y `ARCHIVED` volvería ambiguo ese eje.
+ */
+export const GarmentOwnershipEnum = z.enum(['OWNED', 'CONSIDERED']);
+export type GarmentOwnership = z.infer<typeof GarmentOwnershipEnum>;
 
 export const TaggingStatusEnum = z.enum(['PENDING', 'SUGGESTED', 'CONFIRMED', 'FAILED']);
 export type TaggingStatus = z.infer<typeof TaggingStatusEnum>;
@@ -269,6 +283,42 @@ export const WardrobeGapStatusEnum = z.enum(['OPEN', 'PURCHASED', 'DISMISSED']);
 export type WardrobeGapStatus = z.infer<typeof WardrobeGapStatusEnum>;
 
 // =====================================================================
+// ¿Me lo compro? (Fase 7)
+// =====================================================================
+
+/** En qué punto está la evaluación de una prenda que todavía no has comprado. */
+export const PurchaseAdviceStatusEnum = z.enum(['OPEN', 'PURCHASED', 'DISMISSED']);
+export type PurchaseAdviceStatus = z.infer<typeof PurchaseAdviceStatusEnum>;
+
+/**
+ * El veredicto. **Lo decide el código, nunca el modelo**: sale de reglas
+ * declarativas sobre lo que midió el motor. `CONDITIONAL` es tanto el "cómprala
+ * si te gusta" como el "todavía no puedo responderte".
+ */
+export const PurchaseVerdictEnum = z.enum(['RECOMMENDED', 'CONDITIONAL', 'NOT_RECOMMENDED']);
+export type PurchaseVerdict = z.infer<typeof PurchaseVerdictEnum>;
+
+/**
+ * Qué regla produjo el veredicto. Se guarda porque un veredicto sin su motivo no
+ * se puede auditar: dos "no recomendada" pueden venir de un color que evitas o de
+ * una prenda que ya tienes, y no se arreglan igual.
+ */
+export const PurchaseVerdictReasonEnum = z.enum([
+  'AVOIDED_COLOR',
+  'AVOIDED_TYPE',
+  'MATCHES_GAP',
+  'COVERS_SCENARIO',
+  'UNLOCKS_OUTFITS',
+  'IMPROVES_SCORE',
+  'DUPLICATE',
+  'NO_IMPACT',
+  'UNUSABLE_IMAGE',
+  'NO_CONFIRMED_WARDROBE',
+  'PENDING_ATTRIBUTES',
+]);
+export type PurchaseVerdictReason = z.infer<typeof PurchaseVerdictReasonEnum>;
+
+// =====================================================================
 // Etiquetas en español
 // =====================================================================
 
@@ -278,6 +328,7 @@ export const enumLabels = {
     STYLING: 'Estilismo',
     GAP_ANALYSIS: 'Análisis de vacíos',
     RENDER: 'Render',
+    PURCHASE_ADVICE: '¿Me lo compro?',
   } satisfies Record<AiJobKind, string>,
   aiJobStatus: {
     QUEUED: 'En cola',
@@ -383,6 +434,10 @@ export const enumLabels = {
     BLEND: 'Mezcla',
     OTHER: 'Otro',
   } satisfies Record<GarmentMaterial, string>,
+  garmentOwnership: {
+    OWNED: 'Ya la tengo',
+    CONSIDERED: 'La estoy pensando',
+  } satisfies Record<GarmentOwnership, string>,
   garmentStatus: {
     ACTIVE: 'Disponible',
     LAUNDRY: 'En la lavandería',
@@ -475,6 +530,29 @@ export const enumLabels = {
     PURCHASED: 'Ya la compré',
     DISMISSED: 'No me interesa',
   } satisfies Record<WardrobeGapStatus, string>,
+  purchaseAdviceStatus: {
+    OPEN: 'Sin decidir',
+    PURCHASED: 'Ya la compré',
+    DISMISSED: 'Descartada',
+  } satisfies Record<PurchaseAdviceStatus, string>,
+  purchaseVerdict: {
+    RECOMMENDED: 'Te la recomiendo',
+    CONDITIONAL: 'Opcional',
+    NOT_RECOMMENDED: 'No te la recomiendo',
+  } satisfies Record<PurchaseVerdict, string>,
+  purchaseVerdictReason: {
+    AVOIDED_COLOR: 'Su color está entre los que evitas',
+    AVOIDED_TYPE: 'Es de un tipo de prenda que evitas',
+    MATCHES_GAP: 'Cubre una brecha que ya tenías apuntada',
+    COVERS_SCENARIO: 'Te deja vestirte para algo que hoy no cubres',
+    UNLOCKS_OUTFITS: 'Abre combinaciones que hoy no puedes armar',
+    IMPROVES_SCORE: 'Mejora tus mejores conjuntos lo suficiente',
+    DUPLICATE: 'Repite algo que ya tienes sin aportar nada',
+    NO_IMPACT: 'No te desbloquea nada medible',
+    UNUSABLE_IMAGE: 'De las fotos no se pudo sacar una prenda',
+    NO_CONFIRMED_WARDROBE: 'Todavía no hay prendas confirmadas con las que comparar',
+    PENDING_ATTRIBUTES: 'Faltan los atributos de la prenda',
+  } satisfies Record<PurchaseVerdictReason, string>,
 } as const;
 
 /** Formalidad 1–5 explicada en palabras, para no mostrar un número desnudo. */

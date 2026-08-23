@@ -16,13 +16,19 @@ responsive (mismo código en escritorio y móvil), instalable como PWA.
 - [examplepng.png](examplepng.png) — la especificación visual de la ficha de look.
   El objetivo es esa ficha, pero armada con prendas reales de la base de datos.
 
-**Estado: Fases 0 a 6 completas y verificadas.** Hay auth, storage privado,
-infraestructura de IA, shell responsive, perfil de estilo, catálogo de tipos de
-prenda, clóset con subida de fotos, el motor de compatibilidad con su ficha de
-look determinista, el etiquetado por visión, el estilista LLM con persistencia de
-`Outfit`, el bucle de aprendizaje sobre el `engineScore`, el análisis de vacíos
-con su página "Qué comprar" y el render visual del look. **No hay todavía**
-evaluación de una prenda antes de comprarla (fase 7) ni PWA (fase 8).
+**Estado: Fases 0 a 7 completas.** Hay auth, storage privado, infraestructura de
+IA, shell responsive, perfil de estilo, catálogo de tipos de prenda, clóset con
+subida de fotos, el motor de compatibilidad con su ficha de look determinista, el
+etiquetado por visión, el estilista LLM con persistencia de `Outfit`, el bucle de
+aprendizaje sobre el `engineScore`, el análisis de vacíos con su página "Qué
+comprar", el render visual del look y la evaluación de una prenda antes de
+comprarla. **No hay todavía** PWA ni despliegue endurecido (fase 8).
+
+La Fase 7 se verificó de punta a punta: las rutas deterministas —medición,
+veredicto, duplicados, aislamiento por usuario y la transición de compra— y sus
+dos llamadas a IA, con candidatas reales que pasaron por el etiquetado por visión
+(`vision-v4`, cuatro fotos) y por la redacción del veredicto (`gpt-5.6-terra`, un
+job por prenda, del orden de 0,003 USD cada uno).
 
 ## Comandos
 
@@ -334,6 +340,76 @@ la consulta para saber qué familias se comportan como neutras.
   El binario se guarda en storage privado con key `userId/outfitId/<archivo>`, así
   que se lee por `/api/media` como cualquier foto. Borrar el look borra sus renders
   por cascada y **sus archivos a mano**: la cascada de la base no sabe nada del disco.
+- **¿Me lo compro?** ([modules/purchase-advice/](apps/backend/src/modules/purchase-advice/)):
+  la Fase 7. La Fase 5 dice qué falta en abstracto; ésta responde por la prenda
+  concreta que estás mirando en la tienda.
+  **La candidata _es_ un `Garment`** con `ownership = CONSIDERED`, un eje aparte
+  de `GarmentStatus` —que habla de la disponibilidad de ropa que ya posees—. Eso
+  regala la subida multipart, la miniatura, `GET /api/media` y el etiquetado por
+  visión entero sin escribir nada: se usan `POST /api/garments/draft` (con
+  `ownership`), `/photos` y `/tagging` tal como están.
+  **Que no se cuele en un look no se comprueba, se hace imposible, en dos barreras
+  independientes**: `GarmentsService.list` es el único sitio donde se lee el clóset
+  y aplica `ownership: 'OWNED'` **por defecto en el servicio y no en el esquema
+  Zod**, porque sus dos consumidores internos —el motor y la cobertura— lo llaman
+  con `{}` y nunca pasan por el pipe; y además una candidata vive en `SUGGESTED`,
+  que el motor no usa. Consecuencia asumida: **toda lectura nueva del clóset tiene
+  que pasar por `GarmentsService.list`**. Por lo mismo `confirm()` del etiquetado
+  rechaza una candidata: confirmarla la metería en los looks de ropa que no tienes,
+  y para una prenda `CONSIDERED` el estado terminal de sus atributos es `SUGGESTED`
+  —ahí la promueve `GarmentsService.update` cuando el usuario los revisa—.
+  **La medición reutiliza el motor, no lo reimplementa.** `measureGarmentImpact`
+  ([coverage/measure.ts](apps/backend/src/modules/wardrobe-gaps/coverage/measure.ts))
+  se extrajo de las hipótesis de la Fase 5 y ahora lo comparten las dos: cuántos
+  conjuntos abre una prenda no puede tener dos versiones. La candidata se clona
+  como `CONFIRMED` y `ACTIVE` antes de medirla, por lo mismo que la prenda
+  hipotética de la Fase 5 nace confirmada: sin eso las reglas duras la descartan y
+  la medición daría siempre cero.
+  **Se miden y se muestran dos números, no uno.** `unlockedOutfitsEstimate` cuenta
+  núcleos nuevos (base + calzado), así que una chaqueta mide 0 aunque sirva;
+  `outfitsUsingItEstimate` cuenta los conjuntos en los que entra. "Entra en 9
+  conjuntos, 3 de ellos imposibles sin ella" es la respuesta honesta; sólo el
+  primero convertiría cualquier abrigo en un "no te sirve".
+  El medidor acepta `equivalentGarmentIds` y la Fase 7 le pasa los duplicados: un
+  núcleo que ya podías armar **cambiando la prenda nueva por la que repite** no es
+  un núcleo nuevo. Sin eso una segunda camisa blanca "desbloquearía" tantos
+  conjuntos como la primera y comprar dos veces lo mismo saldría recomendado. La
+  Fase 5 no pasa nada y su cálculo no cambia.
+  **El veredicto lo decide el código, no el modelo** ([verdict.ts](apps/backend/src/modules/purchase-advice/verdict.ts)):
+  reglas declarativas y la primera que acierta. El orden es la regla —lo que el
+  usuario declaró manda sobre cualquier medida, y el duplicado va al final porque
+  una prenda que abre conjuntos sigue valiendo aunque se parezca a otra—. El umbral
+  es **el mismo `minScoreGainPoints`** de la Fase 5, importado y no copiado:
+  duplicarlo dejaría que las dos fases discreparan sobre la misma chaqueta.
+  La duplicación también se determina en código
+  ([duplicates.ts](apps/backend/src/modules/purchase-advice/duplicates.ts)): mismo
+  tipo, mismo slot, misma familia de color y misma banda de formalidad.
+  **Los datos insuficientes no producen un falso rechazo**: `UNUSABLE_IMAGE`,
+  `PENDING_ATTRIBUTES` y `NO_CONFIRMED_WARDROBE` salen como `CONDITIONAL` con su
+  motivo, sin números inventados y **sin llamar al modelo**.
+  **El modelo sólo redacta** ([llm/](apps/backend/src/modules/purchase-advice/llm/)):
+  recibe el veredicto ya tomado y escribe titular, explicación y hasta tres notas
+  de cómo combinarla; el prompt le prohíbe darle la vuelta a un veredicto negativo,
+  y no tiene ningún campo donde cambiarlo. Las prendas con las que la empareja
+  viajan como ids cortos `g1..gN` declarados como enum en runtime y el servidor las
+  vuelve a resolver. Usa `OPENAI_STYLIST_MODEL`, como la Fase 5 y por lo mismo.
+  **La medición se ve gratis** (`GET /api/purchase-advice/measure/:garmentId`) y
+  **re-evaluar sobre una prenda y un clóset que no cambiaron no vuelve a pagarse**:
+  `analysisSnapshot` guarda la huella de los atributos corregidos, las fotos,
+  `taggingVersion`, el clóset `OWNED`, el perfil y las brechas. Es la regla de la
+  Fase 5 y no la de los looks, porque la misma prenda sobre el mismo clóset da
+  exactamente la misma respuesta.
+  Todo se direcciona **por la prenda** y no por el veredicto: `PurchaseAdvice` es
+  único por `garmentId`, así que el id del veredicto no hace falta para nada.
+  "Ya la compré" es `POST /api/purchase-advice/:garmentId/purchase` y hace las
+  cuatro cosas **en una transacción** —`ownership = OWNED`, `status = ACTIVE`,
+  `taggingStatus = CONFIRMED` y el veredicto a `PURCHASED`—, porque son la misma
+  decisión: si la prenda entra y el veredicto no se cierra, la lista miente.
+  El listado devuelve las candidatas sin decidir **y las ya compradas**: dejaron de
+  ser candidatas, pero la decisión es historial y se consulta días después. Ese
+  historial se cierra con `DELETE /api/purchase-advice/:garmentId`, que **borra el
+  veredicto y no la prenda**: una vez comprada vive en el clóset, y sacarla de esta
+  pantalla no puede significar borrarla de allí.
 - **IA** ([modules/ai/](apps/backend/src/modules/ai/)): toda llamada a un proveedor
   pasa por `AiJobsService.reserve()`, que dentro de una transacción `Serializable`
   comprueba el presupuesto mensual y crea el `AiJob` con su `idempotencyKey`
@@ -529,6 +605,30 @@ la consulta para saber qué familias se comportan como neutras.
   `prefill` de `GarmentDialogComponent`: la brecha ya describe la prenda, y hacer que
   el usuario la teclee sería pedirle que copie lo que la app acaba de decirle. Al
   cerrar el diálogo se recalcula la cobertura, que acaba de dejar de ser cierta.
+- La página **Qué comprar** tiene dos pestañas y son **dos preguntas distintas**:
+  "Qué me falta" es la Fase 5 y "¿Me lo compro?" la 7. La pestaña viaja en `?tab=`
+  ([shopping.types.ts](apps/frontend/src/app/features/shopping/shopping.types.ts))
+  para poder abrir la segunda de un enlace desde el celular, que es donde se usa:
+  de pie en la tienda. No hay entrada nueva de menú.
+  La pestaña de evaluar ([purchase-tab.component.ts](apps/frontend/src/app/features/shopping/purchase-tab.component.ts))
+  es historial y se recupera al entrar, como las brechas y al revés que los looks.
+  La ficha separa lo gratis de lo pagado: "Medir mi clóset · gratis" enseña
+  veredicto y números sin llamar a nadie, y sólo "Pedir el veredicto · IA" cuesta.
+  Una prenda ya comprada conserva su ficha pero **no ofrece borrarla ni editarla
+  ahí**: vive en el clóset y se toca desde el clóset. Lo que sí ofrece es quitarla
+  de esta lista, que borra el veredicto y deja la prenda intacta — son dos cosas
+  distintas y el diálogo de confirmación lo dice.
+  **La ficha dice qué está esperando, no sólo que espera**: el store anota la
+  acción en vuelo (`PurchaseAction`) y no sólo la prenda, así que medir enseña
+  "midiendo tu clóset" y pedir el veredicto enseña que la IA puede tardar unos
+  segundos. Un botón deshabilitado sin más no distingue lo instantáneo y gratis de
+  lo lento y pagado.
+  **El diálogo de prenda es el mismo** y su entrada `mode` dice qué significa
+  guardar: `CLOSET` confirma, `CANDIDATE` revisa los atributos sin confirmar —eso la
+  metería en los looks— y `PURCHASE` ejecuta la transición de compra. Reescribir un
+  formulario de prenda para la Fase 7 habría dejado dos sitios donde arreglar el
+  mismo campo. En modo candidata avisa además de que una foto de tienda degrada el
+  color y el material: el veredicto sale de esos atributos.
 - Un `<select>` cuyas opciones salen de un `@for` **no** puede fijar el valor con
   `[value]` en el select: Angular lo escribe antes de que existan las opciones y
   se queda vacío. Se marca `[selected]` en la opción.

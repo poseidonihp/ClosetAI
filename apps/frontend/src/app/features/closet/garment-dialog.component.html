@@ -9,8 +9,8 @@
 
   <div class="dialog-slot">
     <closet-dialog
-      [title]="isEdit() ? 'Editar prenda' : 'Nueva prenda'"
-      [subtitle]="isEdit() ? 'Tu clóset' : 'Añadir al clóset'"
+      [title]="dialogTitle()"
+      [subtitle]="dialogSubtitle()"
       widthClass="w-[min(720px,96vw)]"
       (closed)="closed.emit()"
     >
@@ -22,6 +22,12 @@
             Una foto plana sobre fondo neutro se etiqueta y se ve mucho mejor que una del armario
             lleno.
           </p>
+          @if (isCandidate()) {
+            <p class="hint mb-3" data-test="div-storehint-modal">
+              En una tienda la percha, la luz y el fondo cambian el color y el material que ve la
+              IA. Revisa los atributos antes de medir: el veredicto sale de ellos.
+            </p>
+          }
 
           <div class="photo-grid">
             @for (photo of photos(); track photo.id) {

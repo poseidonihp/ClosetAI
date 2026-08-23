@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import type {
   CreateGarment,
   Garment,
+  GarmentOwnership,
   TagGarmentResponse,
   UpdateGarment,
 } from '@closetai/shared-types';
@@ -63,13 +64,32 @@ export class ClosetStore {
    * Crea el hueco al que colgar la foto que va a etiquetar la IA. Nace en
    * `PENDING` y no cuenta como prenda del clóset hasta que se confirma, pero se
    * añade al estado local para que sus fotos y su etiquetado tengan dónde vivir.
+   *
+   * Una candidata **no** se añade: el servidor no la devuelve al listar el clóset,
+   * así que dejarla aquí la enseñaría en la rejilla hasta la siguiente recarga.
    * @param {string | null} name - Nombre provisional, si el usuario escribió uno.
+   * @param {GarmentOwnership} [ownership='OWNED'] - Si ya es tuya o la estás pensando.
    * @returns {Promise<Garment>}
    */
-  async createDraft(name: string | null): Promise<Garment> {
-    const created = await this._api.post<Garment>('garments/draft', { name });
-    this._garments.update(list => [created, ...list]);
+  async createDraft(name: string | null, ownership: GarmentOwnership = 'OWNED'): Promise<Garment> {
+    const created = await this._api.post<Garment>('garments/draft', { name, ownership });
+    if (ownership === 'OWNED') {
+      this._garments.update(list => [created, ...list]);
+    }
     return created;
+  }
+
+  /**
+   * Mete en el clóset la candidata que el usuario acaba de comprar. La transición
+   * es atómica en el servidor: la prenda pasa a ser suya y su veredicto se cierra.
+   * @param {string} garmentId - Candidata que pasa a ser suya.
+   * @param {UpdateGarment} dto - Atributos finales de la prenda.
+   * @returns {Promise<Garment>}
+   */
+  async purchaseCandidate(garmentId: string, dto: UpdateGarment): Promise<Garment> {
+    const bought = await this._api.post<Garment>(`purchase-advice/${garmentId}/purchase`, dto);
+    this._garments.update(list => [bought, ...list.filter(garment => garment.id !== bought.id)]);
+    return bought;
   }
 
   /**

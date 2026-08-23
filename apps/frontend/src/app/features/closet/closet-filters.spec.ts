@@ -30,6 +30,7 @@ function buildGarment(overrides: Partial<Garment> = {}): Garment {
     size: 'M',
     taggingStatus: 'CONFIRMED',
     status: 'ACTIVE',
+    ownership: 'OWNED',
     wearCount: 0,
     lastWornAt: null,
     createdAt: '2026-08-05T00:00:00.000Z',

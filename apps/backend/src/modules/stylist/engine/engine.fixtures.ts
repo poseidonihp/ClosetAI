@@ -28,6 +28,7 @@ const defaultGarment: Omit<Garment, 'id' | 'name' | 'slot'> = {
   size: null,
   taggingStatus: 'CONFIRMED',
   status: 'ACTIVE',
+  ownership: 'OWNED',
   wearCount: 0,
   lastWornAt: null,
   createdAt: '2026-07-01T10:00:00.000Z',

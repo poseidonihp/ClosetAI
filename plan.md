@@ -11,7 +11,7 @@
 | 4 — Estilista LLM y ficha         | ☑      |
 | 5 — Análisis de vacíos y feedback | ☑      |
 | 6 — Render visual con IA          | ☑      |
-| 7 — ¿Me lo compro?                | ☐      |
+| 7 — ¿Me lo compro?                | ☑      |
 | 8 — PWA y despliegue              | ☐      |
 
 > **Alcance del MVP.** La primera versión útil termina en la Fase 4: perfil, prendas, motor determinista, etiquetado automático, looks usando exclusivamente prendas existentes y feedback. El análisis de compras, el render y la evaluación de una prenda antes de comprarla son extensiones posteriores; no bloquean la validación del producto principal.
@@ -416,7 +416,7 @@ Cada fase entrega algo usable y verificable en escritorio **y** móvil. No se pa
 - Confirmación de costo antes de generar, cuota transaccional y registro en `AiUsageLog`. Se guarda como `OutfitRender` con modelo, calidad, tamaño y prompt versionado.
 - **Verificar:** el render se parece razonablemente al look, se identifica como generado por IA, queda guardado junto al outfit y el costo aparece registrado. Un error o rechazo no rompe la ficha determinista.
 
-### ☐ Fase 7 — "¿Me lo compro?" (evaluar una prenda antes de comprarla)
+### ☑ Fase 7 — "¿Me lo compro?" (evaluar una prenda antes de comprarla)
 
 La Fase 5 dice qué te falta en abstracto; ésta responde la pregunta concreta que se hace de pie en la tienda: fotografías la camisa verde que tienes en la mano y el sistema dice si encaja en tu clóset y cuántas combinaciones abre. La diferencia con la Fase 5 es que ahí la prenda es **hipotética** —un tipo del catálogo con un color versátil— y aquí es la prenda real que estás mirando, con su color y su corte de verdad.
 

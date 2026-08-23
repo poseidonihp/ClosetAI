@@ -12,6 +12,7 @@ import {
   type GarmentQuery,
   type GarmentTagging,
   type TaggableField,
+  type TaggingStatus,
   type VisionConfidenceReport,
 } from '@closetai/shared-types';
 import type { Env } from '../../config/env.validation';
@@ -81,13 +82,14 @@ export class GarmentsService {
   /**
    * Lista el clóset del usuario, de lo más reciente a lo más antiguo.
    * @param {string} userId - Usuario autenticado.
-   * @param {GarmentQuery} query - Filtros opcionales por estado y slot.
+   * @param {GarmentQuery} query - Filtros opcionales por estado, slot y propiedad.
    * @returns {Promise<Garment[]>}
    */
   async list(userId: string, query: GarmentQuery): Promise<Garment[]> {
     const garments = await this._prisma.garment.findMany({
       where: {
         userId,
+        ownership: query.ownership ?? 'OWNED',
         ...(query.status ? { status: query.status } : {}),
         ...(query.slot ? { slot: query.slot } : {}),
       },
@@ -129,9 +131,11 @@ export class GarmentsService {
   }
 
   /**
-   * Crea el hueco al que colgarle la foto que va a etiquetar la IA.
+   * Crea el hueco al que colgarle la foto que va a etiquetar la IA. Con
+   * `ownership: 'CONSIDERED'` el hueco es el de la prenda que todavía estás
+   * pensando comprar: misma ruta, misma subida y mismo etiquetado.
    * @param {string} userId - Usuario autenticado.
-   * @param {CreateGarmentDraft} dto - Nombre provisional, si el usuario ya escribió uno.
+   * @param {CreateGarmentDraft} dto - Nombre provisional y si ya es tuya o no.
    * @returns {Promise<Garment>}
    */
   async createDraft(userId: string, dto: CreateGarmentDraft): Promise<Garment> {
@@ -140,6 +144,7 @@ export class GarmentsService {
     const garment = await this._prisma.garment.create({
       data: {
         userId,
+        ownership: dto.ownership,
         name: chosenName || draftGarmentName,
         slot: placeholder.slot,
         garmentTypeId: placeholder.id,
@@ -168,12 +173,33 @@ export class GarmentsService {
     if (dto.garmentTypeId) {
       await this._garmentTypes.requireById(dto.garmentTypeId);
     }
+    const manualFields = GarmentsService.manualFieldsAfter(current, dto);
     const garment = await this._prisma.garment.update({
       where: { id: garmentId },
       include: garmentInclude,
-      data: { ...dto, manualFields: GarmentsService.manualFieldsAfter(current, dto) },
+      data: {
+        ...dto,
+        manualFields,
+        ...GarmentsService._reviewedCandidateStatus(current, manualFields),
+      },
     });
     return this.toDto(garment);
+  }
+
+  /**
+   * Saca de `PENDING` a la candidata cuyos atributos acaba de revisar el usuario.
+   * @private
+   * @param {GarmentRowWithRelations} current - Prenda tal como está guardada.
+   * @param {readonly TaggableField[]} manualFields - Atributos tocados a mano.
+   * @returns {{ taggingStatus: TaggingStatus } | Record<string, never>}
+   */
+  private static _reviewedCandidateStatus(
+    current: GarmentRowWithRelations,
+    manualFields: readonly TaggableField[],
+  ): { taggingStatus: TaggingStatus } | Record<string, never> {
+    const isUnreviewedCandidate =
+      current.ownership === 'CONSIDERED' && current.taggingStatus === 'PENDING';
+    return isUnreviewedCandidate && manualFields.length > 0 ? { taggingStatus: 'SUGGESTED' } : {};
   }
 
   /**
@@ -254,6 +280,7 @@ export class GarmentsService {
       size: garment.size,
       taggingStatus: garment.taggingStatus,
       status: garment.status,
+      ownership: garment.ownership,
       wearCount: garment.wearCount,
       lastWornAt: garment.lastWornAt?.toISOString() ?? null,
       createdAt: garment.createdAt.toISOString(),

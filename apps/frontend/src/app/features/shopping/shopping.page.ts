@@ -6,7 +6,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Shirt, ShoppingBag } from 'lucide-angular';
 import { enumLabels, type WardrobeGap } from '@closetai/shared-types';
 import { AiUsageStore } from '../../core/ai/ai-usage.store';
@@ -20,12 +20,19 @@ import type { IGarmentPrefill } from '../closet/closet.types';
 import { GarmentDialogComponent } from '../closet/garment-dialog.component';
 import { GapCardComponent } from './gap-card.component';
 import { GapsStore } from './gaps.store';
+import { PurchaseTabComponent } from './purchase-tab.component';
+import type { ShoppingTab } from './shopping.types';
+import { shoppingTabs } from './shopping.types';
 
 const skeletonCards = 2;
 const costFractionDigits = 4;
 
 /**
- * Página "Qué comprar": la cobertura del clóset y las brechas priorizadas.
+ * Página "Qué comprar", con sus dos mitades: los vacíos del clóset en abstracto y
+ * la evaluación de una prenda concreta.
+ *
+ * La pestaña viaja en `?tab=` para poder abrir "Evaluar" de un enlace desde el
+ * celular, que es donde se usa: de pie en la tienda, con la prenda en la mano.
  * @class
  */
 @Component({
@@ -38,6 +45,7 @@ const costFractionDigits = 4;
     ErrorBannerComponent,
     GapCardComponent,
     GarmentDialogComponent,
+    PurchaseTabComponent,
     SkeletonComponent,
   ],
   host: { style: 'display: flex; flex: 1; flex-direction: column' },
@@ -50,8 +58,12 @@ export class ShoppingPage implements OnInit {
   protected readonly labels = enumLabels;
   protected readonly skeletonCards = Array.from({ length: skeletonCards }, (_unused, i) => i);
 
+  protected readonly tabs = shoppingTabs;
+
   protected readonly usage = inject(AiUsageStore);
   private readonly _gaps = inject(GapsStore);
+  private readonly _route = inject(ActivatedRoute);
+  private readonly _router = inject(Router);
   private readonly _closet = inject(ClosetStore);
   private readonly _confirm = inject(ConfirmService);
   private readonly _notify = inject(NotificationService);
@@ -64,6 +76,9 @@ export class ShoppingPage implements OnInit {
   protected readonly loading = this._gaps.loading;
   protected readonly analyzing = this._gaps.analyzing;
   protected readonly error = this._gaps.error;
+
+  /** Pestaña visible. Arranca de la query y la escribe al cambiar. */
+  protected readonly tab = signal<ShoppingTab>('vacios');
 
   /** Brecha sobre la que hay una acción en vuelo. */
   protected readonly pendingGapId = signal<string | null>(null);
@@ -99,13 +114,43 @@ export class ShoppingPage implements OnInit {
   });
 
   /**
-   * Carga las brechas guardadas, la cobertura, el clóset y el gasto del mes.
+   * Abre la pestaña que pide la query y carga las brechas, la cobertura, el
+   * clóset y el gasto del mes.
    * @returns {void}
    */
   ngOnInit(): void {
+    const requested = this._route.snapshot.queryParamMap.get('tab');
+    if (requested !== null && ShoppingPage._isTab(requested)) {
+      this.tab.set(requested);
+    }
     void this._gaps.load();
     void this._closet.load();
     void this.usage.load();
+  }
+
+  /**
+   * Cambia de pestaña y lo deja en la URL, sin ensuciar el historial: es la misma
+   * pantalla, no un sitio nuevo al que volver con atrás.
+   * @param {ShoppingTab} tab - Pestaña elegida.
+   * @returns {void}
+   */
+  protected selectTab(tab: ShoppingTab): void {
+    this.tab.set(tab);
+    void this._router.navigate([], {
+      relativeTo: this._route,
+      queryParams: { tab },
+      replaceUrl: true,
+    });
+  }
+
+  /**
+   * Indica si el valor de la query es una pestaña que existe.
+   * @private
+   * @param {string} value - Valor tal como llegó en la URL.
+   * @returns {boolean}
+   */
+  private static _isTab(value: string): value is ShoppingTab {
+    return shoppingTabs.some(tab => tab.id === value);
   }
 
   /**

@@ -9,6 +9,7 @@ import { GarmentsModule } from './modules/garments/garments.module';
 import { HealthModule } from './modules/health/health.module';
 import { MediaModule } from './modules/media/media.module';
 import { ProfileModule } from './modules/profile/profile.module';
+import { PurchaseAdviceModule } from './modules/purchase-advice/purchase-advice.module';
 import { StylistModule } from './modules/stylist/stylist.module';
 import { WardrobeGapsModule } from './modules/wardrobe-gaps/wardrobe-gaps.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -41,6 +42,7 @@ const requestsPerWindow = 100;
     GarmentsModule,
     StylistModule,
     WardrobeGapsModule,
+    PurchaseAdviceModule,
   ],
   providers: [
     {
