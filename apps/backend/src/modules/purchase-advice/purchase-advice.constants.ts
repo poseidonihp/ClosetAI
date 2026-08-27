@@ -16,6 +16,13 @@ export const maxPairedGarmentsInEnum = 6;
 /** Prefijo de los ids cortos con los que viajan las prendas emparejadas. */
 export const purchaseGarmentShortIdPrefix = 'g';
 
+/**
+ * Prefijo de los ids cortos con los que viajan las brechas abiertas. Es `b` de
+ * brecha y no la `h` de la Fase 5: allí son hipótesis que el motor acaba de
+ * inventar para medirlas, y aquí son brechas ya guardadas y redactadas.
+ */
+export const purchaseGapShortIdPrefix = 'b';
+
 /** Caracteres de la huella de la evaluación. 16 hex ya no colisionan. */
 export const purchaseSignatureLength = 16;
 

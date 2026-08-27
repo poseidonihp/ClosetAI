@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { makeGarment } from '../stylist/engine/engine.fixtures';
 import { coveredCloset, minimalistProfile } from '../wardrobe-gaps/coverage/coverage.fixtures';
 import { evaluatePurchase } from './evaluation';
-import { makeCandidate, makeEvaluationInput } from './purchase-advice.fixtures';
+import { makeCandidate, makeEvaluationInput, makeOpenGap } from './purchase-advice.fixtures';
 
 /**
  * Casos golden de la evaluación de compra. Como el motor, se escriben con objetos
@@ -107,12 +107,9 @@ describe('evaluatePurchase', () => {
     const result = evaluatePurchase(
       makeEvaluationInput(candidate, {
         openGaps: [
-          {
-            id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          makeOpenGap('dddddddd-dddd-4ddd-8ddd-dddddddddddd', {
             garmentTypeId: candidate.garmentTypeId,
-            slot: 'TOP',
-            colorHex: '#d8c9ae',
-          },
+          }),
         ],
       }),
     );

@@ -186,6 +186,29 @@
   color: var(--qp-clay);
 }
 
+.purchase-alternative {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--qp-line);
+  border-radius: 10px;
+  background: var(--qp-bg-soft);
+}
+
+.purchase-alternative .purchase-label {
+  margin-top: 0;
+}
+
+.purchase-alternativelabel {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--qp-ink);
+}
+
+.purchase-alternativelink {
+  margin-top: 10px;
+}
+
 .purchase-source {
   margin: 10px 0 0;
   padding-top: 10px;

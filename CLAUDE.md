@@ -388,17 +388,40 @@ la consulta para saber qué familias se comportan como neutras.
   `PENDING_ATTRIBUTES` y `NO_CONFIRMED_WARDROBE` salen como `CONDITIONAL` con su
   motivo, sin números inventados y **sin llamar al modelo**.
   **El modelo sólo redacta** ([llm/](apps/backend/src/modules/purchase-advice/llm/)):
-  recibe el veredicto ya tomado y escribe titular, explicación y hasta tres notas
-  de cómo combinarla; el prompt le prohíbe darle la vuelta a un veredicto negativo,
-  y no tiene ningún campo donde cambiarlo. Las prendas con las que la empareja
-  viajan como ids cortos `g1..gN` declarados como enum en runtime y el servidor las
-  vuelve a resolver. Usa `OPENAI_STYLIST_MODEL`, como la Fase 5 y por lo mismo.
+  recibe el veredicto ya tomado y no tiene ningún campo donde cambiarlo. Las
+  prendas con las que la empareja viajan como ids cortos `g1..gN` declarados como
+  enum en runtime y el servidor las vuelve a resolver. Usa `OPENAI_STYLIST_MODEL`,
+  como la Fase 5 y por lo mismo.
+  **Y además no lo repite**, que es lo que arregló
+  [advice.prompt.v2.ts](apps/backend/src/modules/purchase-advice/llm/advice.prompt.v2.ts):
+  la v1 le pedía "el veredicto en una frase" cuando la pantalla ya lo enseña con su
+  etiqueta y sus números, así que la llamada pagada producía una segunda versión de
+  algo que el usuario ya estaba leyendo. Ahora su texto empieza donde el veredicto
+  acaba —qué hace ahora con la prenda— y el prompt se lo prohíbe explícitamente.
+  **La alternativa sale de sus brechas, no de la imaginación del modelo.** Lo único
+  que un algoritmo no sabe decir es "ésta no, pero lo que te falta de verdad es
+  aquello": las brechas `OPEN` ya estaban calculadas y ordenadas por la Fase 5 y
+  sólo se usaban para un booleano (`matchedGapId`), y ahora viajan enteras como ids
+  cortos `b1..bN` declarados como enum. La que la candidata ya cubre se queda fuera
+  de la lista —proponerla sería proponer lo que tiene delante— y el modelo sólo
+  puede rellenarla si el veredicto no es positivo.
+  `PurchaseAdvice.alternativeLabel` **copia la descripción de la brecha al
+  redactar** y por eso no es redundante con el id: un análisis nuevo de la Fase 5
+  reemplaza las `OPEN`, así que el id puede dejar de existir mientras el texto que
+  lo citaba sigue en pantalla. Por lo mismo la columna no lleva relación, igual que
+  `matchedGapId`.
+  **Viaja la portada de la prenda**, y sólo ella, con `detail: 'low'` atado a la
+  tarea y no al entorno: aquí la foto sirve para que el texto no sea genérico, no
+  para volver a catalogar —eso ya lo hizo el etiquetado por visión— y `high`
+  costaría casi cinco veces más por la misma frase. Una prenda sin fotos o con el
+  binario perdido se evalúa igual: se llama sin imagen y el prompt no la menciona.
   **La medición se ve gratis** (`GET /api/purchase-advice/measure/:garmentId`) y
   **re-evaluar sobre una prenda y un clóset que no cambiaron no vuelve a pagarse**:
   `analysisSnapshot` guarda la huella de los atributos corregidos, las fotos,
-  `taggingVersion`, el clóset `OWNED`, el perfil y las brechas. Es la regla de la
-  Fase 5 y no la de los looks, porque la misma prenda sobre el mismo clóset da
-  exactamente la misma respuesta.
+  `taggingVersion`, el clóset `OWNED`, el perfil, las brechas **y la versión del
+  prompt** —sin esta última, subirla dejaría a `_tryReuse` devolviendo para siempre
+  el texto de la versión anterior—. Es la regla de la Fase 5 y no la de los looks,
+  porque la misma prenda sobre el mismo clóset da exactamente la misma respuesta.
   Todo se direcciona **por la prenda** y no por el veredicto: `PurchaseAdvice` es
   único por `garmentId`, así que el id del veredicto no hace falta para nada.
   "Ya la compré" es `POST /api/purchase-advice/:garmentId/purchase` y hace las
@@ -623,6 +646,14 @@ la consulta para saber qué familias se comportan como neutras.
   "midiendo tu clóset" y pedir el veredicto enseña que la IA puede tardar unos
   segundos. Un botón deshabilitado sin más no distingue lo instantáneo y gratis de
   lo lento y pagado.
+  El bloque **"En su lugar"** vive dentro del texto de la IA y no junto a los
+  números, porque eso es exactamente lo que es: lo redactó el modelo, y el pie de
+  procedencia que ya estaba ahí lo cubre. Su "Ver en mi lista" **no es un
+  `routerLink`**: la página lee `?tab=` del snapshot al entrar, así que un enlace
+  cambiaría la URL sin cambiar de pestaña. Sube como output de la ficha a la
+  pestaña y de ahí a la página, que llama a `selectTab`. Sólo se ofrece si la
+  brecha sigue viva; si desapareció, el texto se sostiene igual sobre
+  `alternativeLabel`.
   **El diálogo de prenda es el mismo** y su entrada `mode` dice qué significa
   guardar: `CLOSET` confirma, `CANDIDATE` revisa los atributos sin confirmar —eso la
   metería en los looks— y `PURCHASE` ejecuta la transición de compra. Reescribir un

@@ -6,6 +6,7 @@ import {
   PurchaseVerdictReasonEnum,
 } from './enums';
 import { GarmentSchema } from './garment';
+import { maxGapDescriptionLength } from './gaps';
 
 /**
  * Contrato de "¿me lo compro?" (Fase 7): evaluar una prenda concreta antes de
@@ -23,8 +24,12 @@ const maxHeadlineLength = 120;
 const maxAdviceReasonLength = 400;
 const maxStylingNoteLength = 200;
 
+const maxAlternativeNoteLength = 200;
+
 /** Notas de cómo combinarla que redacta el modelo. */
 export const maxStylingNotes = 3;
+/** Brechas abiertas entre las que el modelo puede elegir la alternativa. */
+export const maxAlternativeGaps = 8;
 /** Prendas propias con las que el modelo puede emparejarla. */
 export const maxPairedGarments = 6;
 
@@ -73,9 +78,21 @@ export const PurchaseMeasurementSchema = z.object({
 export type PurchaseMeasurement = z.infer<typeof PurchaseMeasurementSchema>;
 
 /**
+ * Qué comprar en lugar de la prenda que estás mirando. Sale de tus brechas
+ * abiertas, nunca de la imaginación del modelo: éste sólo elige una de la lista y
+ * dice por qué.
+ */
+export const PurchaseAlternativeSchema = z.object({
+  gapId: z.string().uuid().nullable(),
+  label: z.string().max(maxGapDescriptionLength),
+  note: z.string().max(maxAlternativeNoteLength),
+});
+export type PurchaseAlternative = z.infer<typeof PurchaseAlternativeSchema>;
+
+/**
  * Un veredicto guardado. El veredicto, los números y las prendas emparejadas los
- * decide el servidor; el titular, la explicación y las notas de combinación las
- * redacta el modelo sobre un veredicto que ya está tomado.
+ * decide el servidor; el titular, la explicación, las notas de combinación y la
+ * alternativa las redacta el modelo sobre un veredicto que ya está tomado.
  */
 export const PurchaseAdviceSchema = z.object({
   id: z.string().uuid(),
@@ -86,6 +103,7 @@ export const PurchaseAdviceSchema = z.object({
   headline: z.string().max(maxHeadlineLength),
   reason: z.string().max(maxAdviceReasonLength),
   stylingNotes: z.array(z.string().max(maxStylingNoteLength)),
+  alternative: PurchaseAlternativeSchema.nullable(),
   impact: PurchaseImpactSchema,
   pairedGarments: z.array(PurchaseGarmentRefSchema),
   duplicateGarments: z.array(PurchaseGarmentRefSchema),

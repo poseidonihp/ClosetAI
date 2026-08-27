@@ -6,7 +6,7 @@ import {
   minimalistProfile,
   testCatalog,
 } from '../wardrobe-gaps/coverage/coverage.fixtures';
-import type { IPurchaseEvaluationInput } from './purchase-advice.types';
+import type { IOpenGapRef, IPurchaseEvaluationInput } from './purchase-advice.types';
 
 /**
  * Candidatas sintéticas para los tests de "¿me lo compro?".
@@ -37,6 +37,27 @@ export function makeCandidate(
     ownership: 'CONSIDERED',
     taggingStatus: 'SUGGESTED',
     tagging: { ...base.tagging, status: 'SUGGESTED', version: visionTaggingVersion },
+    ...overrides,
+  };
+}
+
+/**
+ * Construye una brecha `OPEN` con lo que hace falta para cruzarla y ofrecerla.
+ * @param {string} id - Id de la brecha.
+ * @param {Partial<IOpenGapRef>} [overrides] - Lo que el caso necesita fijar.
+ * @returns {IOpenGapRef}
+ */
+export function makeOpenGap(id: string, overrides: Partial<IOpenGapRef> = {}): IOpenGapRef {
+  return {
+    id,
+    garmentTypeId: shirtTypeId,
+    slot: 'TOP',
+    colorHex: '#d8c9ae',
+    colorName: 'Beige',
+    formality: 3,
+    description: 'camisa beige de corte regular',
+    priority: 1,
+    unlockedOutfitsEstimate: 2,
     ...overrides,
   };
 }

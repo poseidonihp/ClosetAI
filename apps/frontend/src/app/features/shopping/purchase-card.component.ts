@@ -44,6 +44,8 @@ export class PurchaseCardComponent {
   readonly reopened = output();
   readonly removed = output();
   readonly forgotten = output();
+  /** El usuario quiere ver en su lista la brecha que el veredicto le propuso. */
+  readonly alternativeOpened = output();
 
   protected readonly iconLoader = Loader;
   protected readonly labels = enumLabels;

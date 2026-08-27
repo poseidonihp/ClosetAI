@@ -104,6 +104,26 @@
             }
           </ul>
         }
+
+        @if (verdictText.alternative; as alternative) {
+          <div class="purchase-alternative" data-test="div-alternative-page">
+            <p class="uplabel purchase-label">En su lugar</p>
+            <p class="purchase-alternativelabel">{{ alternative.label }}</p>
+            @if (alternative.note) {
+              <p class="purchase-reason">{{ alternative.note }}</p>
+            }
+            @if (alternative.gapId) {
+              <button
+                type="button"
+                class="pill purchase-alternativelink"
+                data-test="action-seealternativegap-page"
+                (click)="alternativeOpened.emit()"
+              >
+                Ver en mi lista
+              </button>
+            }
+          </div>
+        }
       </div>
     }
 

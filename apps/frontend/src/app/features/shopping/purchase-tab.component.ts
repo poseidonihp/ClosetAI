@@ -4,6 +4,7 @@ import {
   OnInit,
   computed,
   inject,
+  output,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -53,6 +54,9 @@ interface IOpenDialog {
   styleUrl: './purchase-tab.component.scss',
 })
 export class PurchaseTabComponent implements OnInit {
+  /** El veredicto propuso una brecha y el usuario quiere verla en su lista. */
+  readonly alternativeOpened = output();
+
   protected readonly iconScan = ScanLine;
   protected readonly iconShirt = Shirt;
   protected readonly skeletonCards = Array.from({ length: skeletonCards }, (_unused, i) => i);

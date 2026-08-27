@@ -13,7 +13,8 @@ export const coverageVersion = 'coverage-v1';
 /** Versión del Json de `analysisSnapshot`; sube si cambia su forma. */
 export const gapSnapshotVersion = 1;
 
-const maxGapDescriptionLength = 160;
+/** La prenda concreta en una linea. Se exporta porque la Fase 7 la copia al citarla. */
+export const maxGapDescriptionLength = 160;
 const maxGapReasonLength = 300;
 
 /**

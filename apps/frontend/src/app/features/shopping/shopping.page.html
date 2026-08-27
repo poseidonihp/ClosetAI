@@ -42,7 +42,7 @@
 
 <div class="page-body shopping-body" data-test="div-shopping-page">
   @if (tab() === 'evaluar') {
-    <closet-purchase-tab />
+    <closet-purchase-tab (alternativeOpened)="selectTab('vacios')" />
   } @else {
     <closet-error-banner [message]="error()" />
 

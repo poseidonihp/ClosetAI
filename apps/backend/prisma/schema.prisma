@@ -802,6 +802,14 @@ model PurchaseAdvice {
   duplicateGarmentIds     String[]              @map("duplicate_garment_ids") @db.Uuid
   /// Brecha `OPEN` que esta prenda cubre, si coincide con alguna.
   matchedGapId            String?               @map("matched_gap_id") @db.Uuid
+  /// Brecha que el modelo propone comprar en su lugar. Sin relación, como
+  /// `matchedGapId`: un análisis nuevo reemplaza las `OPEN` y el id queda colgando.
+  alternativeGapId        String?               @map("alternative_gap_id") @db.Uuid
+  /// Descripción de esa brecha copiada al redactar. Es lo que sostiene el texto
+  /// cuando la brecha que citaba ya no existe.
+  alternativeLabel        String?               @map("alternative_label")
+  /// Por qué ésa y no la que estaba mirando. Lo redacta el modelo.
+  alternativeNote         String?               @map("alternative_note")
   measureVersion          String                @map("measure_version")
   promptVersion           String                @map("prompt_version")
   modelUsed               String?               @map("model_used")

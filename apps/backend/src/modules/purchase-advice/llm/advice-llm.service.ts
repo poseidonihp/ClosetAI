@@ -15,8 +15,8 @@ import {
   advicePromptVersion,
   buildAdvicePrompt,
   type IAdvicePromptInput,
-} from './advice.prompt.v1';
-import type { IAdviceResult } from './advice.types';
+} from './advice.prompt.v2';
+import type { IAdviceImage, IAdviceResult } from './advice.types';
 
 /**
  * Usa el modelo del estilista y no uno propio: es la misma tarea —escribir el
@@ -56,13 +56,18 @@ export class AdviceLlmService {
 
   /**
    * Costo que se reserva antes de llamar. Es una cota alta a propósito: el cierre
-   * del job la sustituye por el costo real que devolvió la API.
+   * del job la sustituye por el costo real que devolvió la API. La foto pesa más
+   * que todo el resto del prompt junto, así que sólo se suma si de verdad viaja.
    * @param {number} garmentCount - Prendas propias que se le enseñan.
+   * @param {number} imageCount - Fotos que viajan en la llamada.
    * @returns {number}
    */
-  estimateCostUsd(garmentCount: number): number {
+  estimateCostUsd(garmentCount: number, imageCount: number): number {
     const expectedUsage: ITokenUsage = {
-      inputTokens: expectedBasePromptTokens + garmentCount * expectedTokensPerGarment,
+      inputTokens:
+        expectedBasePromptTokens +
+        garmentCount * expectedTokensPerGarment +
+        imageCount * expectedTokensPerImage,
       outputTokens: expectedOutputTokens,
       cachedInputTokens: 0,
     };
@@ -71,18 +76,27 @@ export class AdviceLlmService {
 
   /**
    * Pide al modelo que redacte el veredicto ya decidido.
-   * @param {IAdvicePromptInput} promptInput - Perfil, candidata, medición y clóset.
+   * @param {IAdvicePromptInput} promptInput - Perfil, candidata, medición, clóset y brechas.
+   * @param {readonly IAdviceImage[]} images - Portada de la candidata, si la tiene.
    * @returns {Promise<IAdviceResult>}
    */
-  async writeAdvice(promptInput: IAdvicePromptInput): Promise<IAdviceResult> {
+  async writeAdvice(
+    promptInput: IAdvicePromptInput,
+    images: readonly IAdviceImage[],
+  ): Promise<IAdviceResult> {
     const shortIds = promptInput.pairedGarments.map(garment => garment.shortId);
-    const contract = buildAdviceContract(shortIds);
+    const gapShortIds = promptInput.openGaps.map(gap => gap.shortId);
+    const contract = buildAdviceContract(shortIds, gapShortIds);
 
     const response = await this._openai.createStructured({
       model: this.model,
       instructions: adviceInstructions,
       prompt: buildAdvicePrompt(promptInput),
-      images: [],
+      images: images.map(image => ({
+        detail: adviceImageDetail,
+        mimeType: image.mimeType,
+        base64: image.buffer.toString('base64'),
+      })),
       schemaName: adviceSchemaName,
       jsonSchema: contract.jsonSchema,
       maxOutputTokens: this._config.get('OPENAI_STYLIST_MAX_OUTPUT_TOKENS', { infer: true }),
@@ -119,12 +133,22 @@ export class AdviceLlmService {
 }
 
 /**
- * Tokens esperados del prompt sin prendas —instrucciones, perfil, candidata y
- * medición— y por prenda propia enseñada. Sólo sirven para reservar presupuesto
- * antes de llamar; el costo real sale del `usage` que devuelve la API.
+ * Detalle con el que viaja la portada. Va atado a la tarea y no al entorno: aquí
+ * la foto sirve para que el texto no sea genérico, no para volver a catalogar la
+ * prenda —eso ya lo hizo el etiquetado por visión— y `high` costaría casi cinco
+ * veces más por la misma frase.
  */
-const expectedBasePromptTokens = 900;
+const adviceImageDetail = 'low';
+
+/**
+ * Tokens esperados del prompt sin prendas —instrucciones, perfil, candidata,
+ * medición y brechas—, por prenda propia enseñada y por foto. Sólo sirven para
+ * reservar presupuesto antes de llamar; el costo real sale del `usage` que
+ * devuelve la API.
+ */
+const expectedBasePromptTokens = 1100;
 const expectedTokensPerGarment = 40;
+const expectedTokensPerImage = 1500;
 const expectedOutputTokens = 500;
 
 const invalidOutputMessage =

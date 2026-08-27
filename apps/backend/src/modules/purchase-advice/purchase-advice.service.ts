@@ -12,11 +12,13 @@ import { Prisma, type AiJob, type PurchaseAdvice as PurchaseAdviceRow } from '@p
 import {
   PurchaseAdviceSnapshotSchema,
   enumLabels,
+  maxAlternativeGaps,
   measureVersion,
   purchaseSnapshotVersion,
   type EvaluatePurchaseResponse,
   type Garment,
   type PurchaseAdvice,
+  type PurchaseAlternative,
   type PurchaseCandidate,
   type PurchaseGarmentRef,
   type PurchaseImpact,
@@ -26,11 +28,13 @@ import {
   type UpdatePurchaseAdvice,
 } from '@closetai/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
+import { StorageDriver } from '../../storage/storage.driver';
 import { AiJobsService } from '../ai/ai-jobs.service';
 import { AiUsageService } from '../ai/ai-usage.service';
 import { costUsdFromUsage } from '../ai/openai-pricing';
 import { AiProviderError } from '../ai/openai.client';
 import { GarmentTypesService } from '../garment-types/garment-types.service';
+import { GarmentTaggingService } from '../garments/garment-tagging.service';
 import {
   GarmentsService,
   garmentInclude,
@@ -41,17 +45,20 @@ import { engineVersion } from '../stylist/engine/engine.constants';
 import { evaluatePurchase } from './evaluation';
 import { AdviceLlmService } from './llm/advice-llm.service';
 import { assembleAdvice } from './llm/advice-assembly';
-import type { IAdvicePromptGarment } from './llm/advice.prompt.v1';
-import type { IAdviceResult } from './llm/advice.types';
+import type { IAdviceImage, IAdviceResult } from './llm/advice.types';
 import {
   maxListedCandidates,
   maxPairedGarmentsInEnum,
+  purchaseGapShortIdPrefix,
   purchaseGarmentShortIdPrefix,
   purchaseSignatureLength,
 } from './purchase-advice.constants';
 import type {
+  IAdviceCallParts,
   IAdvicePersistContext,
   IMeasurementContext,
+  IOpenGapRef,
+  IPromptGaps,
   IPromptGarments,
   IPurchaseEvaluation,
   IPurchaseEvaluationInput,
@@ -94,6 +101,7 @@ export class PurchaseAdviceService {
    * @param {AdviceLlmService} _llm - Capa 2: quien redacta el veredicto.
    * @param {AiJobsService} _jobs - Presupuesto, idempotencia y reintentos.
    * @param {AiUsageService} _usage - Registro de auditoría del consumo.
+   * @param {StorageDriver} _storage - Driver de almacenamiento de imágenes.
    */
   constructor(
     private readonly _prisma: PrismaService,
@@ -103,6 +111,7 @@ export class PurchaseAdviceService {
     private readonly _llm: AdviceLlmService,
     private readonly _jobs: AiJobsService,
     private readonly _usage: AiUsageService,
+    private readonly _storage: StorageDriver,
   ) {}
 
   /**
@@ -172,14 +181,28 @@ export class PurchaseAdviceService {
     }
 
     const prompt = PurchaseAdviceService._toPromptInput(context.evaluation, context.closetById);
-    const job = await this._reserveJob(userId, context.signature, prompt.garments.length);
-    const llmResult = await this._callModel(userId, job, context, prompt.garments);
+    const gaps = PurchaseAdviceService._toPromptGaps(
+      context.openGaps,
+      context.evaluation.matchedGapId,
+    );
+    const images = await this._readCover(context.candidateRow);
+    const job = await this._reserveJob(
+      userId,
+      context.signature,
+      prompt.garments.length,
+      images.length,
+    );
+    const llmResult = await this._callModel(userId, job, context, {
+      images,
+      openGaps: gaps.gaps,
+      pairedGarments: prompt.garments,
+    });
     const costUsd = await this._settle(userId, job, llmResult);
 
-    const assembly = assembleAdvice(llmResult.draft, prompt.byShortId);
+    const assembly = assembleAdvice(llmResult.draft, prompt.byShortId, gaps.byShortId);
     if (assembly.discarded.length > 0) {
       this._logger.warn(
-        `PurchaseAdviceService > evaluate - ${assembly.discarded.length} prenda(s) descartadas del veredicto de ${garmentId}`,
+        `PurchaseAdviceService > evaluate - ${assembly.discarded.length} propuesta(s) descartadas del veredicto de ${garmentId}`,
       );
     }
     const advice = await this._save(userId, garmentId, assembly, {
@@ -188,6 +211,7 @@ export class PurchaseAdviceService {
       measurement,
       signature: context.signature,
       pairedGarmentIds: assembly.pairedGarmentIds,
+      alternative: assembly.alternative,
     });
 
     return this._respond({ measurement, costUsd, advice });
@@ -281,7 +305,18 @@ export class PurchaseAdviceService {
       this._garmentTypes.list(),
       this._prisma.wardrobeGap.findMany({
         where: { userId, status: 'OPEN' },
-        select: { id: true, garmentTypeId: true, slot: true, colorHex: true },
+        orderBy: { priority: 'asc' },
+        select: {
+          id: true,
+          garmentTypeId: true,
+          slot: true,
+          colorHex: true,
+          colorName: true,
+          formality: true,
+          description: true,
+          priority: true,
+          unlockedOutfitsEstimate: true,
+        },
       }),
     ]);
 
@@ -298,10 +333,12 @@ export class PurchaseAdviceService {
 
     return {
       candidate,
+      candidateRow,
       evaluation,
       closetById,
+      openGaps,
       measurement: PurchaseAdviceService._toMeasurement(candidate, evaluation, closetById),
-      signature: PurchaseAdviceService._signature(candidate, closet, profile, openGaps),
+      signature: this._signature(candidate, closet, profile, openGaps),
     };
   }
 
@@ -389,6 +426,61 @@ export class PurchaseAdviceService {
   }
 
   /**
+   * Brechas abiertas que se le ofrecen al modelo como alternativa, con su id
+   * corto posicional. La que esta misma prenda ya cubre se queda fuera:
+   * proponerla sería proponer lo que el usuario tiene delante.
+   * @private
+   * @param {readonly IOpenGapRef[]} openGaps - Brechas pendientes, por prioridad.
+   * @param {string | null} matchedGapId - Brecha que cubre la candidata, si cubre alguna.
+   * @returns {IPromptGaps}
+   */
+  private static _toPromptGaps(
+    openGaps: readonly IOpenGapRef[],
+    matchedGapId: string | null,
+  ): IPromptGaps {
+    const offered = openGaps
+      .filter(gap => gap.id !== matchedGapId)
+      .slice(0, maxAlternativeGaps)
+      .map((gap, index) => ({ gap, shortId: `${purchaseGapShortIdPrefix}${index + 1}` }));
+
+    return {
+      byShortId: new Map(offered.map(entry => [entry.shortId, entry.gap])),
+      gaps: offered.map(entry => ({
+        shortId: entry.shortId,
+        description: entry.gap.description,
+        slot: entry.gap.slot,
+        formality: entry.gap.formality,
+        priority: entry.gap.priority,
+        unlockedOutfitsEstimate: entry.gap.unlockedOutfitsEstimate,
+      })),
+    };
+  }
+
+  /**
+   * Lee la portada de la candidata para que el modelo escriba mirándola. Una
+   * prenda sin fotos o con el binario perdido no rompe nada: se llama sin imagen
+   * y el prompt no la menciona.
+   * @private
+   * @param {GarmentRowWithRelations} candidateRow - Candidata con sus imágenes.
+   * @returns {Promise<IAdviceImage[]>}
+   */
+  private async _readCover(candidateRow: GarmentRowWithRelations): Promise<IAdviceImage[]> {
+    const hasOriginal = candidateRow.images.some(image => image.kind === 'ORIGINAL');
+    const cover = hasOriginal ? GarmentTaggingService.selectPhotos(candidateRow.images)[0] : null;
+    if (!cover) {
+      return [];
+    }
+    const file = await this._storage.read(cover.storageKey);
+    if (file === null) {
+      this._logger.warn(
+        `PurchaseAdviceService > _readCover - la portada de la prenda ${candidateRow.id} no está en almacenamiento`,
+      );
+      return [];
+    }
+    return [{ buffer: file.buffer, mimeType: file.mimeType }];
+  }
+
+  /**
    * Devuelve el veredicto guardado si salió de esta misma prenda y este clóset.
    * @private
    * @param {string} userId - Usuario autenticado.
@@ -418,10 +510,10 @@ export class PurchaseAdviceService {
    * @param {Garment} candidate - Candidata evaluada.
    * @param {readonly Garment[]} closet - Prendas que el usuario ya tiene.
    * @param {StyleProfile} profile - Perfil del usuario.
-   * @param {readonly { id: string; status?: string }[]} openGaps - Brechas pendientes.
+   * @param {readonly { id: string }[]} openGaps - Brechas pendientes.
    * @returns {string}
    */
-  private static _signature(
+  private _signature(
     candidate: Garment,
     closet: readonly Garment[],
     profile: StyleProfile,
@@ -430,6 +522,7 @@ export class PurchaseAdviceService {
     const parts = [
       measureVersion,
       engineVersion,
+      this._llm.promptVersion,
       PurchaseAdviceService._fingerprintOf(candidate),
       candidate.tagging.version ?? 'sin-etiquetar',
       candidate.photos
@@ -437,7 +530,9 @@ export class PurchaseAdviceService {
         .sort((first, second) => first.localeCompare(second))
         .join(','),
       profile.updatedAt,
-      ...[...closet].map(PurchaseAdviceService._fingerprintOf).sort((first, second) => first.localeCompare(second)),
+      ...[...closet]
+        .map(PurchaseAdviceService._fingerprintOf)
+        .sort((first, second) => first.localeCompare(second)),
       ...[...openGaps].map(gap => gap.id).sort((first, second) => first.localeCompare(second)),
     ];
     return createHash('sha256')
@@ -491,12 +586,14 @@ export class PurchaseAdviceService {
    * @param {string} userId - Usuario autenticado.
    * @param {string} signature - Huella de la entrada actual.
    * @param {number} garmentCount - Prendas propias que viajan al modelo.
+   * @param {number} imageCount - Fotos que viajan al modelo.
    * @returns {Promise<AiJob>}
    */
   private async _reserveJob(
     userId: string,
     signature: string,
     garmentCount: number,
+    imageCount: number,
   ): Promise<AiJob> {
     const baseKey = `${idempotencyPrefix}:${this._llm.promptVersion}:${signature}`;
     const previous = await this._prisma.aiJob.findMany({
@@ -512,7 +609,7 @@ export class PurchaseAdviceService {
       idempotencyKey: isRetry
         ? latest.idempotencyKey
         : PurchaseAdviceService._suffixed(baseKey, previous.length),
-      estimatedCostUsd: this._llm.estimateCostUsd(garmentCount),
+      estimatedCostUsd: this._llm.estimateCostUsd(garmentCount, imageCount),
       model: this._llm.model,
     });
 
@@ -542,25 +639,30 @@ export class PurchaseAdviceService {
    * @param {string} userId - Usuario autenticado.
    * @param {AiJob} job - Job ya reservado.
    * @param {IMeasurementContext} context - Candidata y medición ya resueltas.
-   * @param {readonly IAdvicePromptGarment[]} pairedGarments - Prendas propias que se le enseñan.
+   * @param {IAdviceCallParts} parts - Prendas, brechas y fotos que se le enseñan.
    * @returns {Promise<IAdviceResult>}
    */
   private async _callModel(
     userId: string,
     job: AiJob,
     context: IMeasurementContext,
-    pairedGarments: readonly IAdvicePromptGarment[],
+    parts: IAdviceCallParts,
   ): Promise<IAdviceResult> {
     const profile = await this._profile.get(userId);
     await this._jobs.markRunning(userId, job.id);
     try {
-      return await this._llm.writeAdvice({
-        profile,
-        pairedGarments,
-        candidate: context.candidate,
-        measurement: context.measurement,
-        duplicateNames: context.measurement.duplicateGarments.map(garment => garment.name),
-      });
+      return await this._llm.writeAdvice(
+        {
+          profile,
+          openGaps: parts.openGaps,
+          pairedGarments: parts.pairedGarments,
+          candidate: context.candidate,
+          measurement: context.measurement,
+          duplicateNames: context.measurement.duplicateGarments.map(garment => garment.name),
+          hasPhoto: parts.images.length > 0,
+        },
+        parts.images,
+      );
     } catch (error) {
       return this._fail(userId, job, error);
     }
@@ -646,7 +748,7 @@ export class PurchaseAdviceService {
    * @param {string} userId - Usuario autenticado.
    * @param {string} garmentId - Candidata evaluada.
    * @param {{ headline: string; reason: string; stylingNotes: string[] }} text - Lo que redactó el modelo.
-   * @param {IAdvicePersistContext} context - Job, huella, medición y resultado.
+   * @param {IAdvicePersistContext} context - Job, huella, medición, alternativa y resultado.
    * @returns {Promise<PurchaseAdvice>}
    */
   private async _save(
@@ -669,6 +771,9 @@ export class PurchaseAdviceService {
       pairedGarmentIds: context.pairedGarmentIds,
       duplicateGarmentIds: impact?.duplicateGarmentIds ?? [],
       matchedGapId: impact?.matchedGapId ?? null,
+      alternativeGapId: context.alternative?.gapId ?? null,
+      alternativeLabel: context.alternative?.label ?? null,
+      alternativeNote: context.alternative?.note ?? null,
       measureVersion,
       promptVersion: context.llmResult.promptVersion,
       modelUsed: context.llmResult.model,
@@ -763,6 +868,7 @@ export class PurchaseAdviceService {
       headline: advice.headline,
       reason: advice.reason,
       stylingNotes: advice.stylingNotes,
+      alternative: PurchaseAdviceService._toAlternative(advice),
       impact: {
         unlockedOutfitsEstimate: advice.unlockedOutfitsEstimate,
         outfitsUsingItEstimate: advice.outfitsUsingItEstimate,
@@ -798,6 +904,25 @@ export class PurchaseAdviceService {
       throw new NotFoundException(adviceNotFoundMessage);
     }
     return dto;
+  }
+
+  /**
+   * La alternativa guardada, si el modelo propuso alguna. El texto se sostiene
+   * sobre `alternativeLabel` y no sobre la brecha viva: un análisis nuevo de la
+   * Fase 5 reemplaza las `OPEN`, así que el id puede haber dejado de existir.
+   * @private
+   * @param {PurchaseAdviceRow} advice - Fila guardada.
+   * @returns {PurchaseAlternative | null}
+   */
+  private static _toAlternative(advice: PurchaseAdviceRow): PurchaseAlternative | null {
+    if (advice.alternativeLabel === null) {
+      return null;
+    }
+    return {
+      gapId: advice.alternativeGapId,
+      label: advice.alternativeLabel,
+      note: advice.alternativeNote ?? '',
+    };
   }
 
   /**
