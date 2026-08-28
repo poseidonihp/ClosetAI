@@ -190,22 +190,3 @@
     opacity: 1;
   }
 }
-
-.drop-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: grid;
-  place-items: center;
-  background: rgba(26, 24, 21, 0.35);
-  pointer-events: none;
-}
-
-.drop-hint {
-  padding: 14px 22px;
-  border-radius: 12px;
-  border: 2px dashed var(--qp-bg);
-  background: rgba(26, 24, 21, 0.72);
-  color: #fff;
-  font-size: 14px;
-}

@@ -35,6 +35,7 @@ import { ClosetStore } from './closet.store';
 import { hasActiveFilters, matchesFilters, type IClosetFilters } from './closet-filters';
 import { GarmentDialogComponent } from './garment-dialog.component';
 import { GarmentTypesStore } from './garment-types.store';
+import { carriesFiles, imagesFrom } from './image-drop';
 
 const skeletonCards = 8;
 const anyValue = '';
@@ -249,7 +250,7 @@ export class ClosetPage implements OnInit {
    * @returns {void}
    */
   protected onDragOver(event: DragEvent): void {
-    if (!ClosetPage._carriesFiles(event)) {
+    if (!this._acceptsDroppedImages(event)) {
       return;
     }
     event.preventDefault();
@@ -273,12 +274,12 @@ export class ClosetPage implements OnInit {
    * @returns {void}
    */
   protected onDrop(event: DragEvent): void {
-    if (!ClosetPage._carriesFiles(event)) {
+    if (!this._acceptsDroppedImages(event)) {
       return;
     }
     event.preventDefault();
     this.dragging.set(false);
-    const images = ClosetPage._imagesFrom(Array.from(event.dataTransfer?.files ?? []));
+    const images = imagesFrom(Array.from(event.dataTransfer?.files ?? []));
     if (images.length > 0) {
       this.openCreate(images);
     }
@@ -293,11 +294,23 @@ export class ClosetPage implements OnInit {
     if (this.dialogOpen()) {
       return;
     }
-    const files = Array.from(event.clipboardData?.files ?? []);
-    const images = ClosetPage._imagesFrom(files);
+    const images = imagesFrom(Array.from(event.clipboardData?.files ?? []));
     if (images.length > 0) {
       this.openCreate(images);
     }
+  }
+
+  /**
+   * Indica si el arrastre trae archivos y si esta página es quien debe atenderlo.
+   * El diálogo tiene su propia zona de suelte y se renderiza aquí dentro, así que
+   * sin este corte una foto soltada sobre él se añadiría y además reabriría el
+   * alta en blanco.
+   * @private
+   * @param {DragEvent} event - Evento de arrastre.
+   * @returns {boolean}
+   */
+  private _acceptsDroppedImages(event: DragEvent): boolean {
+    return !this.dialogOpen() && carriesFiles(Array.from(event.dataTransfer?.types ?? []));
   }
 
   /**
@@ -341,25 +354,5 @@ export class ClosetPage implements OnInit {
    */
   protected slotLabel(slot: GarmentSlot): string {
     return enumLabels.garmentSlot[slot];
-  }
-
-  /**
-   * Indica si el arrastre transporta archivos y no texto o un enlace.
-   * @private
-   * @param {DragEvent} event - Evento de arrastre.
-   * @returns {boolean}
-   */
-  private static _carriesFiles(event: DragEvent): boolean {
-    return Array.from(event.dataTransfer?.types ?? []).includes('Files');
-  }
-
-  /**
-   * Filtra los archivos que son imágenes.
-   * @private
-   * @param {File[]} files - Archivos recibidos.
-   * @returns {File[]}
-   */
-  private static _imagesFrom(files: File[]): File[] {
-    return files.filter(file => file.type.startsWith('image/'));
   }
 }

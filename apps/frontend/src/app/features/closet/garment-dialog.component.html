@@ -118,7 +118,7 @@
               </label>
               @if (!layout.isMobile()) {
                 <span class="hint self-center">
-                  También puedes arrastrarlas o pegarlas sobre el clóset.
+                  También puedes arrastrarlas aquí o pegarlas desde el portapapeles.
                 </span>
               }
             </div>
@@ -402,4 +402,10 @@
       </div>
     </closet-dialog>
   </div>
+
+  @if (dragging()) {
+    <div class="drop-overlay" data-test="div-drop-modal" aria-hidden="true">
+      <div class="drop-hint">Suelta las fotos para añadirlas a esta prenda</div>
+    </div>
+  }
 </div>

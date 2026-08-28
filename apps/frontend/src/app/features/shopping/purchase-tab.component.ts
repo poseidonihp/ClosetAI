@@ -12,6 +12,7 @@ import { ScanLine, Shirt } from 'lucide-angular';
 import type { PurchaseCandidate, PurchaseMeasurement } from '@closetai/shared-types';
 import { AiUsageStore } from '../../core/ai/ai-usage.store';
 import { ConfirmService } from '../../core/confirm/confirm.service';
+import { LayoutService } from '../../core/layout/layout.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { EmptyStateComponent } from '../../shared/ui/empty-state.component';
 import { ErrorBannerComponent } from '../../shared/ui/error-banner.component';
@@ -19,6 +20,7 @@ import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { ClosetStore } from '../closet/closet.store';
 import type { GarmentDialogMode } from '../closet/closet.types';
 import { GarmentDialogComponent } from '../closet/garment-dialog.component';
+import { carriesFiles, imagesFrom } from '../closet/image-drop';
 import { PurchaseCardComponent } from './purchase-card.component';
 import { PurchaseStore } from './purchase.store';
 import type { PurchaseAction } from './shopping.types';
@@ -26,10 +28,11 @@ import type { PurchaseAction } from './shopping.types';
 const skeletonCards = 2;
 const costFractionDigits = 4;
 
-/** Prenda abierta en el diálogo y con qué intención. */
+/** Prenda abierta en el diálogo, con qué intención y con qué fotos ya elegidas. */
 interface IOpenDialog {
   candidate: PurchaseCandidate | null;
   mode: GarmentDialogMode;
+  files: readonly File[];
 }
 
 /**
@@ -49,7 +52,13 @@ interface IOpenDialog {
     PurchaseCardComponent,
     SkeletonComponent,
   ],
-  host: { style: 'display: contents' },
+  host: {
+    style: 'display: contents',
+    '(dragover)': 'onDragOver($event)',
+    '(dragleave)': 'onDragLeave($event)',
+    '(drop)': 'onDrop($event)',
+    '(document:paste)': 'onPaste($event)',
+  },
   templateUrl: './purchase-tab.component.html',
   styleUrl: './purchase-tab.component.scss',
 })
@@ -62,6 +71,7 @@ export class PurchaseTabComponent implements OnInit {
   protected readonly skeletonCards = Array.from({ length: skeletonCards }, (_unused, i) => i);
 
   protected readonly usage = inject(AiUsageStore);
+  protected readonly layout = inject(LayoutService);
   private readonly _purchases = inject(PurchaseStore);
   private readonly _closet = inject(ClosetStore);
   private readonly _confirm = inject(ConfirmService);
@@ -75,11 +85,16 @@ export class PurchaseTabComponent implements OnInit {
 
   /** Qué prenda está abierta en el diálogo y con qué intención. */
   protected readonly dialog = signal<IOpenDialog | null>(null);
+  /** True mientras se arrastran archivos por encima de la pestaña. */
+  protected readonly dragging = signal(false);
 
   /** Sin prendas confirmadas no hay clóset contra el que medir nada. */
   protected readonly closetIsEmpty = computed(
     () => this._closet.garments().length === 0 && !this._closet.loading(),
   );
+
+  /** True cuando esta pestaña puede atender una imagen soltada o pegada */
+  private readonly _acceptsImages = computed(() => this.dialog() === null && !this.closetIsEmpty());
 
   /**
    * La redacción sólo se ofrece si el mes tiene presupuesto. Sin resumen cargado
@@ -105,10 +120,71 @@ export class PurchaseTabComponent implements OnInit {
 
   /**
    * Abre el diálogo para fotografiar y etiquetar una prenda nueva.
+   * @param {readonly File[]} [files=[]] - Fotos soltadas o pegadas.
    * @returns {void}
    */
-  protected startNew(): void {
-    this.dialog.set({ candidate: null, mode: 'CANDIDATE' });
+  protected startNew(files: readonly File[] = []): void {
+    this.dialog.set({ candidate: null, mode: 'CANDIDATE', files });
+  }
+
+  /**
+   * Marca la pestaña como zona de suelte mientras se arrastran archivos.
+   * @param {DragEvent} event - Evento de arrastre.
+   * @returns {void}
+   */
+  protected onDragOver(event: DragEvent): void {
+    if (!this._acceptsImages() || !carriesFiles(Array.from(event.dataTransfer?.types ?? []))) {
+      return;
+    }
+    event.preventDefault();
+    this.dragging.set(true);
+  }
+
+  /**
+   * Quita el resaltado al salir del área de suelte.
+   * @param {DragEvent} event - Evento de arrastre.
+   * @returns {void}
+   */
+  protected onDragLeave(event: DragEvent): void {
+    if (event.relatedTarget === null) {
+      this.dragging.set(false);
+    }
+  }
+
+  /**
+   * Empieza a evaluar la prenda de las imágenes soltadas sobre la pestaña.
+   * @param {DragEvent} event - Evento de suelte.
+   * @returns {void}
+   */
+  protected onDrop(event: DragEvent): void {
+    if (!this._acceptsImages() || !carriesFiles(Array.from(event.dataTransfer?.types ?? []))) {
+      return;
+    }
+    event.preventDefault();
+    this.dragging.set(false);
+    const images = imagesFrom(Array.from(event.dataTransfer?.files ?? []));
+    if (images.length > 0) {
+      this.startNew(images);
+    }
+  }
+
+  /**
+   * Empieza a evaluar la prenda de las imágenes pegadas. En la tienda la foto
+   * suele estar en el portapapeles y no en el disco: una captura de la ficha del
+   * producto o la imagen copiada de la web.
+   * @param {ClipboardEvent} event - Evento de pegado.
+   * @returns {void}
+   */
+  protected onPaste(event: ClipboardEvent): void {
+    if (!this._acceptsImages()) {
+      return;
+    }
+    const images = imagesFrom(Array.from(event.clipboardData?.files ?? []));
+    if (images.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    this.startNew(images);
   }
 
   /**
@@ -117,7 +193,7 @@ export class PurchaseTabComponent implements OnInit {
    * @returns {void}
    */
   protected edit(candidate: PurchaseCandidate): void {
-    this.dialog.set({ candidate, mode: 'CANDIDATE' });
+    this.dialog.set({ candidate, mode: 'CANDIDATE', files: [] });
   }
 
   /**
@@ -127,7 +203,7 @@ export class PurchaseTabComponent implements OnInit {
    * @returns {void}
    */
   protected buy(candidate: PurchaseCandidate): void {
-    this.dialog.set({ candidate, mode: 'PURCHASE' });
+    this.dialog.set({ candidate, mode: 'PURCHASE', files: [] });
   }
 
   /**

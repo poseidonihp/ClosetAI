@@ -11,6 +11,12 @@
     <p class="section-hint">
       Mientras no pulses "ya la compré" no entra en ningún look ni cuenta como cobertura.
     </p>
+    @if (!layout.isMobile()) {
+      <p class="section-hint" data-test="div-drophint-page">
+        La foto no tiene por qué estar en el disco: arrastra la imagen aquí o pégala del
+        portapapeles y se abre la ficha con ella puesta.
+      </p>
+    }
     <button
       type="button"
       class="pill pill-solid mt-3"
@@ -119,9 +125,16 @@
   }
 </div>
 
+@if (dragging()) {
+  <div class="drop-overlay" data-test="div-drop-page" aria-hidden="true">
+    <div class="drop-hint">Suelta la foto para evaluar la prenda</div>
+  </div>
+}
+
 @if (dialog(); as open) {
   <closet-garment-dialog
     [garment]="open.candidate?.garment ?? null"
+    [initialFiles]="open.files"
     [mode]="open.mode"
     (closed)="closeDialog()"
   />

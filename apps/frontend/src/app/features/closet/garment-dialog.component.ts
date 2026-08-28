@@ -51,6 +51,7 @@ import type { GarmentDialogMode, IGarmentPrefill, IPendingPhoto } from './closet
 import { GarmentTaggingPanelComponent } from './garment-tagging-panel.component';
 import { GarmentTypesStore } from './garment-types.store';
 import { compressForUpload } from './image-compression';
+import { carriesFiles, imagesFrom } from './image-drop';
 
 const defaultColorHex = '#1a1815';
 
@@ -86,6 +87,12 @@ const unusablePhotosMessage =
     GarmentTaggingPanelComponent,
     SubmitButtonComponent,
   ],
+  host: {
+    '(dragover)': 'onDragOver($event)',
+    '(dragleave)': 'onDragLeave($event)',
+    '(drop)': 'onDrop($event)',
+    '(document:paste)': 'onPaste($event)',
+  },
   templateUrl: './garment-dialog.component.html',
   styleUrl: './garment-dialog.component.scss',
 })
@@ -139,6 +146,8 @@ export class GarmentDialogComponent implements OnInit {
   /** Fotos ya subidas y total del lote, para el contador del botón. */
   protected readonly uploadedCount = signal(0);
   protected readonly uploadTotal = signal(0);
+  /** True mientras se arrastran archivos por encima del diálogo. */
+  protected readonly dragging = signal(false);
 
   /**
    * Prenda tal como está en el servidor. Empieza siendo la que llega por input
@@ -432,6 +441,59 @@ export class GarmentDialogComponent implements OnInit {
     const fileInput = event.target as HTMLInputElement;
     this.addFiles(Array.from(fileInput.files ?? []));
     fileInput.value = '';
+  }
+
+  /**
+   * Marca el diálogo como zona de suelte mientras se arrastran archivos.
+   * @param {DragEvent} event - Evento de arrastre.
+   * @returns {void}
+   */
+  protected onDragOver(event: DragEvent): void {
+    if (!carriesFiles(Array.from(event.dataTransfer?.types ?? []))) {
+      return;
+    }
+    event.preventDefault();
+    this.dragging.set(true);
+  }
+
+  /**
+   * Quita el resaltado al salir del área de suelte.
+   * @param {DragEvent} event - Evento de arrastre.
+   * @returns {void}
+   */
+  protected onDragLeave(event: DragEvent): void {
+    if (event.relatedTarget === null) {
+      this.dragging.set(false);
+    }
+  }
+
+  /**
+   * Encola las imágenes soltadas sobre el diálogo.
+   * @param {DragEvent} event - Evento de suelte.
+   * @returns {void}
+   */
+  protected onDrop(event: DragEvent): void {
+    if (!carriesFiles(Array.from(event.dataTransfer?.types ?? []))) {
+      return;
+    }
+    event.preventDefault();
+    this.dragging.set(false);
+    this.addFiles(imagesFrom(Array.from(event.dataTransfer?.files ?? [])));
+  }
+
+  /**
+   * Encola las imágenes pegadas desde el portapapeles: una captura o una foto
+   * copiada nunca pasó por el disco y no hay archivo que elegir.
+   * @param {ClipboardEvent} event - Evento de pegado.
+   * @returns {void}
+   */
+  protected onPaste(event: ClipboardEvent): void {
+    const images = imagesFrom(Array.from(event.clipboardData?.files ?? []));
+    if (images.length === 0) {
+      return;
+    }
+    event.preventDefault();
+    this.addFiles(images);
   }
 
   /**

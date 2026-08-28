@@ -669,6 +669,19 @@ la consulta para saber qué familias se comportan como neutras.
   inventada. El cliente comprime antes de subir con canvas
   ([image-compression.ts](apps/frontend/src/app/features/closet/image-compression.ts)),
   respetando la orientación EXIF y cayendo al archivo original si algo falla.
+- **Una foto no tiene por qué estar en el disco**: la rejilla del clóset, el
+  diálogo de prenda y la pestaña "¿Me lo compro?" aceptan arrastre y pegado
+  ([image-drop.ts](apps/frontend/src/app/features/closet/image-drop.ts)), que es
+  cómo llega una captura o una imagen copiada de la web de una tienda. El filtro
+  mira el tipo MIME y **nunca la extensión**: una captura pegada llega como
+  `image.png` sin haber existido como archivo. Lo que **no** entra es arrastrar
+  la imagen desde otra página web: eso viaja como URL y descargarla chocaría con
+  el `connect-src 'self'` del CSP.
+  El diálogo tiene su propia zona de suelte y se renderiza dentro de sus dos
+  contenedores, así que la página y la pestaña **cortan** sus manejadores mientras
+  está abierto: sin eso una foto soltada sobre él se añadiría y además reabriría
+  el alta en blanco. El pegado sólo se intercepta cuando el portapapeles trae
+  imágenes, para que pegar texto en un campo siga funcionando.
 - El **etiquetado por IA** vive en el mismo diálogo de prenda
   ([garment-tagging-panel.component.ts](apps/frontend/src/app/features/closet/garment-tagging-panel.component.ts)).
   Por el mismo motivo tampoco hay barra de progreso: dice en qué paso va
