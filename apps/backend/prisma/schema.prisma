@@ -796,6 +796,14 @@ model PurchaseAdvice {
   outfitsUsingItEstimate  Int                   @map("outfits_using_it_estimate")
   /// Puntos que gana el mejor conjunto del escenario que más la aprovecha.
   scoreGainPoints         Int                   @map("score_gain_points")
+  /// Nota 0–100 del mejor conjunto que la incluye: "¿queda bien con lo que
+  /// tengo?", que no es la misma pregunta que "¿me abre conjuntos nuevos?".
+  /// Con default porque la columna se añadió sobre una tabla con filas.
+  bestOutfitScore         Int                   @default(0) @map("best_outfit_score")
+  /// Mejor nota de ese mismo escenario sin ella, para poder comparar.
+  baselineBestScore       Int                   @default(0) @map("baseline_best_score")
+  /// Escenario donde mejor queda. Null si no entra en ninguno.
+  bestOutfitScenarioLabel String?               @map("best_outfit_scenario_label")
   /// Prendas propias con las que el motor la combinó y el modelo la empareja.
   pairedGarmentIds        String[]              @map("paired_garment_ids") @db.Uuid
   /// Prendas propias que hacen el mismo papel. Vacío si no duplica nada.

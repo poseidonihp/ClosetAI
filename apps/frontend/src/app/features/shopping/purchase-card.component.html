@@ -66,8 +66,12 @@
       </p>
     }
 
+    @if (fitLabel(); as fit) {
+      <p class="purchase-numbers" data-test="div-fitscore-page">{{ fit }}</p>
+    }
+
     @if (numbersLabel(); as numbers) {
-      <p class="purchase-numbers" data-test="div-numbers-page">{{ numbers }}</p>
+      <p class="purchase-hint" data-test="div-numbers-page">{{ numbers }}</p>
     }
 
     @if (impact(); as measured) {

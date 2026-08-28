@@ -64,12 +64,15 @@ export function evaluatePurchase(input: IPurchaseEvaluationInput): IPurchaseEval
   const newlyCoveredScenarioLabels = runs
     .filter(run => impact.newlyCoveredScenarioIds.includes(run.spec.id))
     .map(run => run.spec.label);
+  const bestOutfitScenarioLabel =
+    runs.find(run => run.spec.id === impact.bestOutfitScenarioId)?.spec.label ?? null;
 
   return {
     impact,
     matchedGapId,
     duplicateGarmentIds,
     newlyCoveredScenarioLabels,
+    bestOutfitScenarioLabel,
     verdict: decision.verdict,
     verdictReason: decision.reason,
     note: describeImpact(impact, newlyCoveredScenarioLabels),
@@ -109,6 +112,7 @@ function toBlocked(verdictReason: PurchaseVerdictReason, note: string): IPurchas
     matchedGapId: null,
     duplicateGarmentIds: [],
     newlyCoveredScenarioLabels: [],
+    bestOutfitScenarioLabel: null,
   };
 }
 
@@ -167,21 +171,21 @@ function findMatchingGap(candidate: Garment, openGaps: readonly IOpenGapRef[]): 
  * @returns {string | null}
  */
 function describeImpact(impact: IGarmentImpact, coveredLabels: readonly string[]): string | null {
-  const parts: string[] = [];
-  if (impact.outfitsUsingItEstimate > 0) {
-    parts.push(`entra en ${impact.outfitsUsingItEstimate} conjunto(s)`);
+  if (impact.outfitsUsingItEstimate === 0) {
+    return 'Con tu clóset de hoy el motor no consigue armar ningún conjunto con ella.';
   }
+  const parts = [
+    `entra en ${impact.outfitsUsingItEstimate} conjunto(s)`,
+    `el mejor saca ${impact.bestOutfitScore} de 100 frente a los ${impact.baselineBestScore} de tu mejor conjunto de hoy`,
+  ];
   if (impact.unlockedOutfitsEstimate > 0) {
-    parts.push(`${impact.unlockedOutfitsEstimate} de ellos imposibles sin ella`);
+    parts.push(`${impact.unlockedOutfitsEstimate} de esos conjuntos son imposibles sin ella`);
   }
   if (coveredLabels.length > 0) {
     parts.push(`te deja vestirte para ${coveredLabels.join(' y ')}`);
   }
   if (impact.scoreGain > 0) {
     parts.push(`sube ${impact.scoreGain} puntos la nota de tu mejor conjunto`);
-  }
-  if (parts.length === 0) {
-    return 'Con tu clóset de hoy no abre ninguna combinación nueva ni mejora ningún conjunto.';
   }
   return `Medido sobre tu clóset: ${parts.join('; ')}.`;
 }

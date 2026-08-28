@@ -365,11 +365,27 @@ la consulta para saber qué familias se comportan como neutras.
   como `CONFIRMED` y `ACTIVE` antes de medirla, por lo mismo que la prenda
   hipotética de la Fase 5 nace confirmada: sin eso las reglas duras la descartan y
   la medición daría siempre cero.
-  **Se miden y se muestran dos números, no uno.** `unlockedOutfitsEstimate` cuenta
-  núcleos nuevos (base + calzado), así que una chaqueta mide 0 aunque sirva;
-  `outfitsUsingItEstimate` cuenta los conjuntos en los que entra. "Entra en 9
-  conjuntos, 3 de ellos imposibles sin ella" es la respuesta honesta; sólo el
-  primero convertiría cualquier abrigo en un "no te sirve".
+  **La candidata se le pide al motor explícitamente**, con el mismo `mustInclude`
+  que usa quien quiere un look con una prenda concreta. La enumeración es codiciosa
+  y recortada —el beam se queda con los mejores núcleos y `bestLayer` adjudica la
+  única plaza de capa a un solo ganador—, así que sin pedirla una prenda que
+  **empata** con otra que ya tienes no aparece jamás en la salida y se medía como
+  si no combinara con nada: un clóset con once chaquetas daba "entra en 0
+  conjuntos" para la duodécima. Pedirla sólo obliga a **considerarla**; la nota la
+  sigue poniendo el motor y puede salir peor que la de hoy. Las reglas duras se
+  aplican aparte y **sin** `mustInclude`, porque saltárselas colaría en la cuenta un
+  color que el usuario evita o una prenda fuera de su rango térmico; y sólo cuentan
+  los conjuntos que de verdad la llevan, porque cuando las reglas duras la
+  descartan el escenario sigue produciendo los conjuntos de siempre.
+  **Se miden y se muestran tres números, y responden a dos preguntas distintas.**
+  "¿Me hace falta?" la contestan `unlockedOutfitsEstimate` —núcleos nuevos (base +
+  calzado), así que una chaqueta mide 0 aunque sirva— y `outfitsUsingItEstimate`,
+  los conjuntos en los que entra. "¿Queda bien con lo que ya tengo?" es otra
+  pregunta y la contesta `bestOutfitScore`, la nota del mejor conjunto que la
+  lleva, que sólo se puede leer al lado de `baselineBestScore`, la del mejor
+  conjunto de hoy sin ella. Un abrigo número doce puede sacar la misma nota que tu
+  mejor look y no desbloquear ni un conjunto: las dos cosas son ciertas, y contar
+  sólo la primera lo convierte en un "no te sirve" que es falso.
   El medidor acepta `equivalentGarmentIds` y la Fase 7 le pasa los duplicados: un
   núcleo que ya podías armar **cambiando la prenda nueva por la que repite** no es
   un núcleo nuevo. Sin eso una segunda camisa blanca "desbloquearía" tantos

@@ -89,11 +89,28 @@ export class PurchaseCardComponent {
     return measurement === null || measurement.canWriteAdvice;
   });
 
+  /**
+   * Null cuando no entra en ningún conjunto y en los veredictos medidos con la
+   * versión anterior, que no guardaron esta nota.
+   */
+  protected readonly fitLabel = computed(() => {
+    const impact = this.impact();
+    if (impact === null || impact.bestOutfitScore <= 0) {
+      return null;
+    }
+    const scenario = impact.bestOutfitScenarioLabel;
+    const context = scenario === null ? '' : ` (${scenario.toLowerCase()})`;
+    return `Tu mejor look con ella saca ${impact.bestOutfitScore} de 100${context}. El mejor que armas hoy sin ella saca ${impact.baselineBestScore}.`;
+  });
+
   /** La respuesta honesta a "cuántas combinaciones puedo hacer", en una frase. */
   protected readonly numbersLabel = computed(() => {
     const impact = this.impact();
     if (impact === null) {
       return null;
+    }
+    if (impact.outfitsUsingItEstimate === 0) {
+      return 'Con tu clóset de hoy el motor no consigue armar ningún conjunto con ella.';
     }
     const total = `Entra en ${impact.outfitsUsingItEstimate} conjunto(s)`;
     if (impact.unlockedOutfitsEstimate === 0) {

@@ -14,8 +14,16 @@ import { maxGapDescriptionLength } from './gaps';
  * real que tienes en la mano.
  */
 
-/** Versión de la medición. Sube si cambia lo que se mide o cómo se mide. */
-export const measureVersion = 'measure-v1';
+/**
+ * Versión de la medición. Sube si cambia lo que se mide o cómo se mide.
+ *
+ * - `measure-v1`: Fase 7, conteos sobre la salida libre del motor.
+ * - `measure-v2`: la candidata se le pide al motor explícitamente y se añade la
+ *   nota del mejor conjunto que la incluye. Sin pedirla, una prenda que empata
+ *   con otra que ya tienes no aparecía nunca y se medía como si no combinara con
+ *   nada.
+ */
+export const measureVersion = 'measure-v2';
 
 /** Versión del Json de `analysisSnapshot`; sube si cambia su forma. */
 export const purchaseSnapshotVersion = 1;
@@ -41,6 +49,17 @@ export const PurchaseImpactSchema = z.object({
   unlockedOutfitsEstimate: z.number().int(),
   outfitsUsingItEstimate: z.number().int(),
   scoreGainPoints: z.number().int(),
+  /**
+   * Nota del mejor conjunto que la incluye, en la escala 0–100 del motor.
+   * Responde a "¿queda bien con lo que tengo?", que **no** es la misma pregunta
+   * que "¿me abre conjuntos nuevos?": una prenda puede quedar estupenda y no
+   * desbloquear nada porque ya tienes otra que hace su papel.
+   */
+  bestOutfitScore: z.number().int(),
+  /** Mejor nota que da hoy ese mismo escenario sin ella, para poder comparar. */
+  baselineBestScore: z.number().int(),
+  /** Escenario donde mejor queda. Null si no entra en ninguno. */
+  bestOutfitScenarioLabel: z.string().nullable(),
   newlyCoveredScenarioLabels: z.array(z.string()),
   pairedGarmentIds: z.array(z.string().uuid()),
   duplicateGarmentIds: z.array(z.string().uuid()),

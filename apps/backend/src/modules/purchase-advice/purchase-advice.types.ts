@@ -57,6 +57,7 @@ export interface IPurchaseEvaluation {
   matchedGapId: string | null;
   duplicateGarmentIds: string[];
   newlyCoveredScenarioLabels: string[];
+  bestOutfitScenarioLabel: string | null;
   note: string | null;
 }
 

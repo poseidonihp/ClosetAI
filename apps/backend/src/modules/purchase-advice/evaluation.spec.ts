@@ -48,6 +48,40 @@ describe('evaluatePurchase', () => {
     expect(result.verdictReason).toBe('IMPROVES_SCORE');
   });
 
+  it('mide la nota de una capa que empata con otra que ya tienes, en vez de darla por inservible', () => {
+    const candidate = makeCandidate('Chaqueta verde oliva', 'OUTERWEAR', {
+      primaryColorHex: '#4a4a3f',
+      primaryColorName: 'Verde oliva',
+      formality: 3,
+      weatherMinC: -5,
+      weatherMaxC: 20,
+    });
+
+    const result = evaluatePurchase(makeEvaluationInput(candidate));
+
+    expect(result.impact?.outfitsUsingItEstimate).toBeGreaterThan(0);
+    expect(result.impact?.bestOutfitScore).toBeGreaterThan(0);
+    expect(result.impact?.bestOutfitScenarioId).not.toBeNull();
+    expect(result.bestOutfitScenarioLabel).not.toBeNull();
+    expect(result.note).toContain('de 100');
+  });
+
+  it('no cuenta como capa una candidata que las reglas duras descartan', () => {
+    const candidate = makeCandidate('Parka polar', 'OUTERWEAR', {
+      primaryColorHex: '#4a4a3f',
+      primaryColorName: 'Verde oliva',
+      formality: 3,
+      weatherMinC: -20,
+      weatherMaxC: -5,
+    });
+
+    const result = evaluatePurchase(makeEvaluationInput(candidate));
+
+    expect(result.impact?.outfitsUsingItEstimate).toBe(0);
+    expect(result.impact?.bestOutfitScore).toBe(0);
+    expect(result.impact?.bestOutfitScenarioId).toBeNull();
+  });
+
   it('no recomienda una prenda de un color que el usuario evita', () => {
     const candidate = makeCandidate('Camisa roja', 'TOP', {
       primaryColorHex: '#b53c3c',

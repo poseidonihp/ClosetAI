@@ -42,9 +42,14 @@ logs/
 npm-debug.log*
 pnpm-debug.log*
 
-# Cobertura
-coverage/
+# Cobertura de tests. Anclado a la raíz y a los paquetes a propósito: sin anclar,
+# `coverage/` casa a cualquier profundidad y se traga
+# `apps/backend/src/modules/wardrobe-gaps/coverage/`, que es codigo fuente.
+/coverage/
+apps/*/coverage/
+packages/*/coverage/
 *.lcov
 
-# Storage local (uploads de desarrollo)
-storage/
+# Storage local (uploads de desarrollo). Anclado por el mismo motivo: sin la barra
+# inicial tambien oculta `apps/backend/src/storage/`.
+/storage/
