@@ -1,9 +1,11 @@
 # Despliega una versión nueva en el mini PC.
 #
 # El orden importa: primero la copia de seguridad (una migración es lo único de
-# aquí que no se puede deshacer), después las migraciones, y sólo al final se
-# reinicia el proceso. Compilar antes de parar nada mantiene la app en pie
-# mientras dura el build.
+# aquí que no se puede deshacer) y después se para el backend, antes de tocar
+# node_modules. En Windows un archivo abierto por un proceso no se puede
+# reemplazar: con el backend vivo, `prisma generate` falla con EPERM al escribir
+# el motor de consultas. La app queda caída durante el build; es el precio de
+# que ese reemplazo sea posible.
 
 [CmdletBinding()]
 param(
@@ -31,6 +33,15 @@ if (-not $NoPull) {
   if ($LASTEXITCODE -ne 0) { throw "git pull falló con código $LASTEXITCODE" }
 }
 
+Write-Host '== Parando el backend =='
+# Se comprueba que la tarea existe antes de pararla: si no, el despliegue dejaría
+# node_modules a medias sin nada que arrancar después.
+$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($null -eq $task) {
+  throw "No existe la tarea '$TaskName'. Regístrala con install-service.ps1."
+}
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+
 Write-Host '== Dependencias =='
 & pnpm install --frozen-lockfile
 if ($LASTEXITCODE -ne 0) { throw "pnpm install falló con código $LASTEXITCODE" }
@@ -53,12 +64,7 @@ Write-Host '== Catálogo de tipos de prenda =='
 & pnpm --filter @closetai/backend db:seed
 if ($LASTEXITCODE -ne 0) { throw "db:seed falló con código $LASTEXITCODE" }
 
-Write-Host '== Reiniciando el servicio =='
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($null -eq $task) {
-  throw "No existe la tarea '$TaskName'. Regístrala con install-service.ps1."
-}
-Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+Write-Host '== Arrancando el backend =='
 Start-ScheduledTask -TaskName $TaskName
 
 Write-Host '== Comprobando =='
