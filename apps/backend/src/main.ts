@@ -8,6 +8,7 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyMultipart from '@fastify/multipart';
 import { maxUploadFileBytes } from '@closetai/shared-types';
 import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -17,6 +18,8 @@ import { LocalDiskDriver } from './storage/local-disk.driver';
 import { accessCookieName } from './modules/auth/jwt.guard';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { requestIdHeader } from './common/request-id';
+import { contentSecurityPolicyDirectives } from './common/security-headers';
+import { registerSpa } from './common/serve-spa';
 
 // Acota los payloads JSON. Las subidas de imagen no pasan por aquí
 const kilobyte = 1024;
@@ -26,6 +29,8 @@ const maxJsonBodyBytes = maxJsonBodyKb * kilobyte;
 // Una foto por petición: el cliente sube en serie para poder mostrar progreso y reintentar sólo la que falle.
 const maxFilesPerRequest = 1;
 const maxFieldsPerRequest = 4;
+const defaultSpaDistPath = resolve(__dirname, '../../frontend/dist/frontend/browser');
+const trustProxy = process.env['TRUST_PROXY'] === 'true';
 
 /**
  * Arranca el backend con adaptador Fastify, cabeceras de seguridad, cookies,
@@ -39,6 +44,7 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({
       logger: false,
       bodyLimit: maxJsonBodyBytes,
+      trustProxy,
       // Acepta un x-request-id entrante (correlación entre servicios) o genera uno.
       requestIdHeader,
       genReqId: (request: IncomingMessage) => {
@@ -61,8 +67,7 @@ async function bootstrap(): Promise<void> {
     });
 
   await app.register(fastifyHelmet, {
-    // El CSP por defecto de helmet rompe el Swagger UI (scripts/estilos inline).
-    contentSecurityPolicy: isProd,
+    contentSecurityPolicy: isProd ? { directives: contentSecurityPolicyDirectives } : false,
   });
 
   await app.register(fastifyCookie, {
@@ -86,7 +91,13 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
 
-  app.useGlobalFilters(new AllExceptionsFilter(isProd));
+  let spaIndexHtml: Buffer | null = null;
+  if (config.get('SERVE_SPA', { infer: true })) {
+    const spaPath = config.get('SPA_DIST_PATH', { infer: true }) ?? defaultSpaDistPath;
+    spaIndexHtml = await registerSpa(app, spaPath);
+  }
+
+  app.useGlobalFilters(new AllExceptionsFilter(isProd, spaIndexHtml));
 
   if (!isProd) {
     const swaggerConfig = new DocumentBuilder()
@@ -102,10 +113,14 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = config.get('PORT', { infer: true });
-  await app.listen(port, '0.0.0.0');
+  const host = config.get('HOST', { infer: true });
+  await app.listen(port, host);
 
-  logger.log(`bootstrap - backend escuchando en http://localhost:${port}`);
+  logger.log(`bootstrap - backend escuchando en http://${host}:${port}`);
   logger.log(`bootstrap - raíz de almacenamiento: ${storage.rootPath}`);
+  if (trustProxy) {
+    logger.log('bootstrap - confiando en X-Forwarded-For para resolver la IP del cliente');
+  }
 }
 
 bootstrap().catch((error: unknown) => {

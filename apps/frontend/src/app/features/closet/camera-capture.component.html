@@ -1,0 +1,94 @@
+<div class="camera-overlay" data-test="div-camera-modal">
+  <header class="camera-bar">
+    <span class="camera-title">Tomar foto</span>
+    @if (cameraCount() > 1 && !shot()) {
+      <button
+        type="button"
+        class="icon-btn camera-icon-btn"
+        data-test="action-switchcamera-modal"
+        aria-label="Cambiar de cámara"
+        title="Cambiar de cámara"
+        (click)="switchCamera()"
+      >
+        <lucide-icon [name]="iconSwitch" class="h-4 w-4" aria-hidden="true" />
+      </button>
+    }
+    <button
+      type="button"
+      class="icon-btn camera-icon-btn"
+      data-test="action-closecamera-modal"
+      aria-label="Cerrar la cámara"
+      (click)="close()"
+    >
+      <lucide-icon [name]="iconClose" class="h-4 w-4" aria-hidden="true" />
+    </button>
+  </header>
+
+  <div class="camera-stage">
+    @if (error(); as message) {
+      <div class="camera-message" role="alert" data-test="div-cameraerror-modal">
+        <p>{{ message }}</p>
+        <button
+          type="button"
+          class="pill pill-solid mt-4"
+          data-test="action-retrycamera-modal"
+          (click)="start()"
+        >
+          <lucide-icon [name]="iconRetry" class="h-3.5 w-3.5" aria-hidden="true" />
+          Reintentar
+        </button>
+      </div>
+    } @else if (shot(); as taken) {
+      <img class="camera-frame" [src]="taken.previewUrl" alt="Foto que acabas de tomar" />
+    } @else {
+      <!-- El vídeo se espeja sólo en pantalla; la captura sale del fotograma crudo. -->
+      <video
+        #video
+        class="camera-frame"
+        [class.mirrored]="mirrored()"
+        autoplay
+        muted
+        playsinline
+        aria-label="Vista en vivo de la cámara"
+      ></video>
+      @if (starting()) {
+        <p class="camera-message" data-test="div-camerastarting-modal">Abriendo la cámara…</p>
+      }
+    }
+  </div>
+
+  <footer class="camera-actions">
+    @if (shot()) {
+      <button
+        type="button"
+        class="pill camera-pill"
+        data-test="action-retakephoto-modal"
+        (click)="retake()"
+      >
+        <lucide-icon [name]="iconRetake" class="h-3.5 w-3.5" aria-hidden="true" />
+        Repetir
+      </button>
+      <button
+        type="button"
+        class="pill pill-solid camera-pill"
+        data-test="action-usephoto-modal"
+        (click)="usePhoto()"
+      >
+        <lucide-icon [name]="iconCheck" class="h-3.5 w-3.5" aria-hidden="true" />
+        Usar esta foto
+      </button>
+    } @else {
+      <p class="camera-hint">Encuadra la prenda sobre un fondo liso: se cataloga mucho mejor.</p>
+      <button
+        type="button"
+        class="shutter"
+        data-test="action-shutter-modal"
+        aria-label="Tomar la foto"
+        [disabled]="starting() || error() !== null"
+        (click)="takePhoto()"
+      >
+        <lucide-icon [name]="iconCamera" class="h-6 w-6" aria-hidden="true" />
+      </button>
+    }
+  </footer>
+</div>

@@ -43,6 +43,8 @@ const throttleWindowSeconds = 60;
 const registerAttemptsPerWindow = 5;
 const loginAttemptsPerWindow = 5;
 const refreshAttemptsPerWindow = 30;
+/** Cuánto se bloquea a quien agota los intentos con credenciales. */
+const credentialsBlockSeconds = 300;
 
 @Controller('auth')
 export class AuthController {
@@ -90,7 +92,11 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({
-    default: { ttl: seconds(throttleWindowSeconds), limit: registerAttemptsPerWindow },
+    default: {
+      ttl: seconds(throttleWindowSeconds),
+      limit: registerAttemptsPerWindow,
+      blockDuration: seconds(credentialsBlockSeconds),
+    },
   })
   async register(
     @Body(new ZodValidationPipe(EncryptedRegisterRequestSchema)) dto: EncryptedRegisterRequest,
@@ -120,8 +126,13 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  // Anti fuerza bruta: 5 intentos por minuto y por IP.
-  @Throttle({ default: { ttl: seconds(throttleWindowSeconds), limit: loginAttemptsPerWindow } })
+  @Throttle({
+    default: {
+      ttl: seconds(throttleWindowSeconds),
+      limit: loginAttemptsPerWindow,
+      blockDuration: seconds(credentialsBlockSeconds),
+    },
+  })
   async login(
     @Body(new ZodValidationPipe(EncryptedLoginRequestSchema)) dto: EncryptedLoginRequest,
     @Res({ passthrough: true }) reply: FastifyReply,

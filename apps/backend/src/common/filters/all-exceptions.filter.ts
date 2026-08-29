@@ -5,8 +5,10 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { htmlContentType, revalidateCacheControl, shouldServeIndex } from '../serve-spa';
 
 /**
  * Filtro global de excepciones.
@@ -26,8 +28,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
    * Inicializa el filtro indicando si corre en producción.
    * @constructor
    * @param {boolean} isProd - true cuando NODE_ENV es production.
+   * @param {Buffer | null} [spaIndexHtml=null] - `index.html` de la SPA, si este proceso la sirve.
    */
-  constructor(private readonly _isProd: boolean) {}
+  constructor(
+    private readonly _isProd: boolean,
+    private readonly _spaIndexHtml: Buffer | null = null,
+  ) {}
 
   /**
    * Convierte cualquier excepción en una respuesta HTTP saneada.
@@ -40,6 +46,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const reply = context.getResponse<FastifyReply>();
     const request = context.getRequest<FastifyRequest>();
     const requestId = request.id;
+
+    if (this._servedSpaIndex(exception, request, reply)) {
+      return;
+    }
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -69,6 +79,35 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 
   /**
+   * Devuelve el `index.html` cuando el 404 es una navegación del router de
+   * Angular. Un 404 de la API o de un asset que falta sigue siendo un 404.
+   * @private
+   * @param {unknown} exception - Excepción capturada.
+   * @param {FastifyRequest} request - Petición que falló.
+   * @param {FastifyReply} reply - Respuesta HTTP.
+   * @returns {boolean}
+   */
+  private _servedSpaIndex(
+    exception: unknown,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): boolean {
+    const indexHtml = this._spaIndexHtml;
+    if (!indexHtml || !(exception instanceof NotFoundException)) {
+      return false;
+    }
+    if (!shouldServeIndex(request.method, request.url, request.headers.accept)) {
+      return false;
+    }
+    reply
+      .status(HttpStatus.OK)
+      .header('Content-Type', htmlContentType)
+      .header('Cache-Control', revalidateCacheControl)
+      .send(indexHtml);
+    return true;
+  }
+
+  /**
    * Construye el cuerpo de respuesta de una HttpException controlada.
    * @private
    * @param {HttpException} exception - Excepción HTTP lanzada por la aplicación.
@@ -85,8 +124,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = exception.getResponse();
     const base = {
       statusCode: status,
-      requestId,
       timestamp: new Date().toISOString(),
+      requestId,
       path,
     };
     if (typeof response === 'string') {

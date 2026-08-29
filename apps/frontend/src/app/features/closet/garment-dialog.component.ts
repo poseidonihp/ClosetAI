@@ -48,9 +48,11 @@ import { FieldComponent } from '../../shared/ui/field.component';
 import { SubmitButtonComponent } from '../../shared/ui/submit-button.component';
 import { ClosetStore } from './closet.store';
 import type { GarmentDialogMode, IGarmentPrefill, IPendingPhoto } from './closet.types';
+import { CameraCaptureComponent } from './camera-capture.component';
 import { GarmentTaggingPanelComponent } from './garment-tagging-panel.component';
 import { GarmentTypesStore } from './garment-types.store';
 import { compressForUpload } from './image-compression';
+import { isCameraAvailable } from './camera';
 import { carriesFiles, imagesFrom } from './image-drop';
 
 const defaultColorHex = '#1a1815';
@@ -80,6 +82,7 @@ const unusablePhotosMessage =
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    CameraCaptureComponent,
     ChipGroupComponent,
     DialogComponent,
     ErrorBannerComponent,
@@ -113,6 +116,8 @@ export class GarmentDialogComponent implements OnInit {
 
   protected readonly labels = enumLabels;
   protected readonly acceptedMimeTypes = acceptedUploadMimeTypes.join(',');
+  /** Se resuelve una vez: ni el contexto seguro ni el soporte de `getUserMedia` */
+  protected readonly cameraSupported = isCameraAvailable();
   protected readonly minFormality = minFormality;
   protected readonly maxFormality = maxFormality;
   protected readonly maxPhotos = maxGarmentPhotos;
@@ -148,6 +153,8 @@ export class GarmentDialogComponent implements OnInit {
   protected readonly uploadTotal = signal(0);
   /** True mientras se arrastran archivos por encima del diálogo. */
   protected readonly dragging = signal(false);
+  /** True mientras la cámara está abierta encima del diálogo. */
+  protected readonly cameraOpen = signal(false);
 
   /**
    * Prenda tal como está en el servidor. Empieza siendo la que llega por input
@@ -429,6 +436,23 @@ export class GarmentDialogComponent implements OnInit {
         },
       ]);
     }
+  }
+
+  /**
+   * Abre la cámara del dispositivo. En Chrome de escritorio es la única forma de
+   * tomar una foto: el `capture` de un input sólo lo atiende el móvil.
+   * @returns {void}
+   */
+  protected openCamera(): void {
+    this.cameraOpen.set(true);
+  }
+
+  /**
+   * Cierra la cámara. La foto, si la hubo, ya entró por `addFiles`.
+   * @returns {void}
+   */
+  protected closeCamera(): void {
+    this.cameraOpen.set(false);
   }
 
   /**

@@ -23,6 +23,7 @@ import {
   type UpdateGarment,
   type UpdatePurchaseAdvice,
 } from '@closetai/shared-types';
+import { aiRateLimit } from '../../common/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PurchaseAdviceService } from './purchase-advice.service';
@@ -86,6 +87,7 @@ export class PurchaseAdviceController {
    */
   @Post(':garmentId/evaluate')
   @HttpCode(HttpStatus.CREATED)
+  @aiRateLimit()
   @Throttle({
     default: { limit: evaluationRequestsPerWindow, ttl: seconds(evaluationWindowSeconds) },
   })

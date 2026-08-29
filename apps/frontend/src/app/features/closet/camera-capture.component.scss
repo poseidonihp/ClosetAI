@@ -1,0 +1,127 @@
+// La cámara se abre sobre el diálogo de prenda, así que va por encima de su
+// capa (1050). El fondo es opaco a propósito: el encuadre es lo único que
+// importa mientras está abierta.
+.camera-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: #0d0b09;
+  color: #f5f1e8;
+}
+
+.camera-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+.camera-title {
+  flex: 1;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.camera-icon-btn {
+  color: #f5f1e8;
+  border-color: rgba(245, 241, 232, 0.28);
+}
+.camera-icon-btn:hover {
+  background: rgba(245, 241, 232, 0.12);
+}
+
+.camera-stage {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.camera-frame {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mirrored {
+  transform: scaleX(-1);
+}
+
+.camera-message {
+  position: absolute;
+  max-width: 32ch;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(245, 241, 232, 0.86);
+}
+
+.camera-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 24px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.camera-hint {
+  font-size: 12px;
+  text-align: center;
+  color: rgba(245, 241, 232, 0.6);
+}
+
+.camera-pill {
+  color: #f5f1e8;
+  border-color: rgba(245, 241, 232, 0.28);
+}
+.camera-pill:hover {
+  background: rgba(245, 241, 232, 0.12);
+}
+
+.camera-actions .pill-solid {
+  color: #1a1815;
+  background: #f5f1e8;
+  border-color: #f5f1e8;
+}
+
+.shutter {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  color: #1a1815;
+  background: #f5f1e8;
+  border: 4px solid rgba(245, 241, 232, 0.35);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.shutter:hover {
+  transform: scale(1.04);
+}
+.shutter:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (min-width: 1024px) {
+  .camera-overlay {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: min(720px, 92vw);
+    height: min(760px, 90vh);
+    transform: translate(-50%, -50%);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
+  }
+}

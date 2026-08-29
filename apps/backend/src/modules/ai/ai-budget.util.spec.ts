@@ -1,5 +1,6 @@
+import { Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
-import { resolveMonthWindow } from './ai-budget.util';
+import { exceedsBudget, resolveMonthWindow } from './ai-budget.util';
 
 describe('resolveMonthWindow', () => {
   it('acota el mes natural en UTC', () => {
@@ -22,5 +23,29 @@ describe('resolveMonthWindow', () => {
 
     expect(window.startsAt.getTime()).toBe(firstInstant.getTime());
     expect(window.endsAt.getTime()).toBeGreaterThan(firstInstant.getTime());
+  });
+});
+
+describe('exceedsBudget', () => {
+  const budget = new Prisma.Decimal(10);
+
+  it('deja pasar una llamada que cabe justo en lo que queda', () => {
+    expect(exceedsBudget(new Prisma.Decimal('9.9'), new Prisma.Decimal('0.1'), budget)).toBe(false);
+  });
+
+  it('corta la que se pasa por poco que sea', () => {
+    expect(exceedsBudget(new Prisma.Decimal('9.9'), new Prisma.Decimal('0.11'), budget)).toBe(true);
+  });
+
+  it('no acumula el error del punto flotante: la cuenta es decimal', () => {
+    const committed = new Prisma.Decimal('0.1').plus('0.2');
+
+    expect(exceedsBudget(committed, new Prisma.Decimal('9.7'), budget)).toBe(false);
+  });
+
+  it('corta cualquier llamada cuando el techo es cero', () => {
+    expect(
+      exceedsBudget(new Prisma.Decimal(0), new Prisma.Decimal('0.0001'), new Prisma.Decimal(0)),
+    ).toBe(true);
   });
 });

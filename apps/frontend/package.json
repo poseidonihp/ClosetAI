@@ -19,6 +19,7 @@
     "@angular/forms": "^21.2.0",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "@angular/service-worker": "^21.2.0",
     "@closetai/shared-types": "workspace:*",
     "lucide-angular": "^1.0.0",
     "node-forge": "^1.4.0",

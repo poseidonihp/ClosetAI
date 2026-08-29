@@ -15,6 +15,7 @@ const minSessionIdleSeconds = 30;
 const maxSessionIdleSeconds = 24 * secondsPerHour;
 const durationPattern = /^(\d{1,7})\s*([smh])?$/i;
 
+const defaultHost = '0.0.0.0';
 const defaultMonthlyBudgetUsd = 10;
 const defaultJobMaxAttempts = 3;
 const defaultRequestTimeoutMs = 60_000;
@@ -102,6 +103,18 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().int().positive().default(defaultPort),
+    HOST: z.string().min(1).default(defaultHost),
+    TRUST_PROXY: z
+      .string()
+      .default('false')
+      .transform(value => value === 'true'),
+    /** Sirve la SPA compilada desde este mismo proceso: un origen, un servicio. */
+    SERVE_SPA: z
+      .string()
+      .default('false')
+      .transform(value => value === 'true'),
+    /** Carpeta `browser/` del build de Angular. Vacío usa la del monorepo. */
+    SPA_DIST_PATH: z.string().optional(),
     DATABASE_URL: z.string().url(),
     JWT_SECRET: z.string().min(minJwtSecretLength, 'JWT_SECRET debe tener al menos 32 caracteres'),
     JWT_REFRESH_SECRET: z
@@ -151,6 +164,7 @@ const envSchema = z
       ),
     STORAGE_ROOT: z.string().optional(),
     AI_MONTHLY_BUDGET_USD: z.coerce.number().nonnegative().default(defaultMonthlyBudgetUsd),
+    AI_GLOBAL_MONTHLY_BUDGET_USD: z.coerce.number().nonnegative().optional(),
     AI_JOB_MAX_ATTEMPTS: z.coerce.number().int().positive().default(defaultJobMaxAttempts),
     AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(defaultRequestTimeoutMs),
     AI_IMAGE_REQUEST_TIMEOUT_MS: z.coerce
@@ -207,13 +221,30 @@ const envSchema = z
 export type Env = z.infer<typeof envSchema>;
 
 /**
+ * Trata una variable escrita y vacía como una variable sin declarar.
+ * @param {Record<string, unknown>} config - Variables de entorno crudas.
+ * @returns {Record<string, unknown>}
+ */
+function withoutEmptyValues(config: Record<string, unknown>): Record<string, unknown> {
+  const declared: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (value === '') {
+      delete process.env[key];
+    } else {
+      declared[key] = value;
+    }
+  }
+  return declared;
+}
+
+/**
  * Valida las variables de entorno al arrancar. Un entorno inválido detiene el
  * proceso con un mensaje legible en vez de fallar más tarde en caliente.
  * @param {Record<string, unknown>} config - Variables de entorno crudas.
  * @returns {Env}
  */
 export function validateEnv(config: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(config);
+  const result = envSchema.safeParse(withoutEmptyValues(config));
   if (!result.success) {
     const issues = result.error.issues
       .map(issue => `  - ${issue.path.join('.')}: ${issue.message}`)

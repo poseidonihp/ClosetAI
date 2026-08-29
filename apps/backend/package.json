@@ -16,7 +16,8 @@
     "prisma:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "tsx prisma/seed.ts",
-    "gen:rsa": "tsx scripts/gen-rsa-keys.ts"
+    "gen:rsa": "tsx scripts/gen-rsa-keys.ts",
+    "gen:icons": "tsx scripts/generate-pwa-icons.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

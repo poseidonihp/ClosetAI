@@ -29,6 +29,8 @@
         }
       </nav>
 
+      <app-install-button class="mb-3" />
+
       <div class="user-row">
         <span class="avatar" aria-hidden="true">{{ initial() }}</span>
         <div class="flex flex-1 flex-col overflow-hidden">
@@ -79,6 +81,7 @@
           </button>
         }
         <closet-brand-mark class="flex-1" />
+        <app-install-button [compact]="true" />
         <button
           type="button"
           class="icon-btn h-9 w-9"

@@ -1,0 +1,30 @@
+# Configuración de ejemplo de Cloudflare Tunnel para el mini PC.
+#
+# Cópiala a C:\Users\<usuario>\.cloudflared\config.yml y sustituye el UUID y el
+# dominio. El túnel abre una conexión saliente hacia Cloudflare, así que no hay
+# que abrir ningún puerto en el router ni exponer la IP de casa.
+#
+# TLS lo termina Cloudflare: el navegador habla HTTPS con el borde y el borde
+# habla HTTP con 127.0.0.1. Eso basta para que la cámara (getUserMedia), el
+# service worker y la instalación de la PWA funcionen, porque todos ellos miran
+# el origen que ve el navegador.
+#
+# Límite que no se configura aquí: el borde de Cloudflare corta una petición que
+# tarde más de 100 s y devuelve un 524, aunque el origen siga trabajando. Afecta
+# sólo al render de imagen (`AI_IMAGE_REQUEST_TIMEOUT_MS` son 180 s). Con la
+# calidad `medium` por defecto no llega, pero con `high` sí: si aparece un 524,
+# el render suele haberse guardado igual y se ve al recargar la ficha —y se pagó—.
+
+tunnel: 00000000-0000-0000-0000-000000000000
+credentials-file: C:\Users\usuario\.cloudflared\00000000-0000-0000-0000-000000000000.json
+
+ingress:
+  - hostname: closet.tudominio.com
+    # Un solo destino: el backend sirve la API y la SPA en el mismo origen, que
+    # es lo que exige el CSP (connect-src 'self').
+    service: http://127.0.0.1:3000
+    originRequest:
+      connectTimeout: 30s
+      httpHostHeader: closet.tudominio.com
+  # Regla final obligatoria: lo que no case con nada devuelve 404.
+  - service: http_status:404

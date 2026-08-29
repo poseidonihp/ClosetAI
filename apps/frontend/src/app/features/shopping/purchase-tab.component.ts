@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ScanLine, Shirt } from 'lucide-angular';
+import { Camera, LucideAngularModule, ScanLine, Shirt } from 'lucide-angular';
 import type { PurchaseCandidate, PurchaseMeasurement } from '@closetai/shared-types';
 import { AiUsageStore } from '../../core/ai/ai-usage.store';
 import { ConfirmService } from '../../core/confirm/confirm.service';
@@ -19,6 +19,8 @@ import { ErrorBannerComponent } from '../../shared/ui/error-banner.component';
 import { SkeletonComponent } from '../../shared/ui/skeleton.component';
 import { ClosetStore } from '../closet/closet.store';
 import type { GarmentDialogMode } from '../closet/closet.types';
+import { isCameraAvailable } from '../closet/camera';
+import { CameraCaptureComponent } from '../closet/camera-capture.component';
 import { GarmentDialogComponent } from '../closet/garment-dialog.component';
 import { carriesFiles, imagesFrom } from '../closet/image-drop';
 import { PurchaseCardComponent } from './purchase-card.component';
@@ -46,6 +48,8 @@ interface IOpenDialog {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterLink,
+    LucideAngularModule,
+    CameraCaptureComponent,
     EmptyStateComponent,
     ErrorBannerComponent,
     GarmentDialogComponent,
@@ -66,8 +70,11 @@ export class PurchaseTabComponent implements OnInit {
   /** El veredicto propuso una brecha y el usuario quiere verla en su lista. */
   readonly alternativeOpened = output();
 
+  protected readonly iconCamera = Camera;
   protected readonly iconScan = ScanLine;
   protected readonly iconShirt = Shirt;
+  /** Se resuelve una vez: el soporte de la cámara no cambia en caliente. */
+  protected readonly cameraSupported = isCameraAvailable();
   protected readonly skeletonCards = Array.from({ length: skeletonCards }, (_unused, i) => i);
 
   protected readonly usage = inject(AiUsageStore);
@@ -87,6 +94,8 @@ export class PurchaseTabComponent implements OnInit {
   protected readonly dialog = signal<IOpenDialog | null>(null);
   /** True mientras se arrastran archivos por encima de la pestaña. */
   protected readonly dragging = signal(false);
+  /** True mientras la cámara está abierta sobre la pestaña. */
+  protected readonly cameraOpen = signal(false);
 
   /** Sin prendas confirmadas no hay clóset contra el que medir nada. */
   protected readonly closetIsEmpty = computed(
@@ -125,6 +134,24 @@ export class PurchaseTabComponent implements OnInit {
    */
   protected startNew(files: readonly File[] = []): void {
     this.dialog.set({ candidate: null, mode: 'CANDIDATE', files });
+  }
+
+  /**
+   * Abre la cámara. Es el atajo de la tienda: la prenda está delante y la foto
+   * todavía no existe en ningún sitio.
+   * @returns {void}
+   */
+  protected openCamera(): void {
+    this.cameraOpen.set(true);
+  }
+
+  /**
+   * Abre la ficha con la foto recién tomada ya puesta.
+   * @param {File} photo - Foto capturada con la cámara.
+   * @returns {void}
+   */
+  protected onCaptured(photo: File): void {
+    this.startNew([photo]);
   }
 
   /**

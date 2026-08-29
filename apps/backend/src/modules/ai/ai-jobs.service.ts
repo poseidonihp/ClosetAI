@@ -4,10 +4,16 @@ import { Prisma, type AiJob } from '@prisma/client';
 import type { AiJobKind } from '@closetai/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Env } from '../../config/env.validation';
-import { resolveMonthWindow } from './ai-budget.util';
+import { exceedsBudget, resolveMonthWindow } from './ai-budget.util';
 
 const budgetExceededMessage =
   'Se agotó el presupuesto mensual de IA. Vuelve a intentarlo el mes que viene o súbelo en la configuración.';
+/**
+ * Mensaje distinto al de arriba a propósito: subir el techo propio no
+ * desbloquearía nada, porque el que se agotó es el de toda la instalación.
+ */
+const globalBudgetExceededMessage =
+  'Se agotó el presupuesto mensual de IA de toda la instalación. Habla con quien la administra.';
 const jobNotFoundMessage = 'Job de IA no encontrado';
 
 /** Estados en los que un job todavía tiene reservado su costo estimado. */
@@ -75,6 +81,11 @@ export class AiJobsService {
     const monthlyBudgetUsd = new Prisma.Decimal(
       this._config.get('AI_MONTHLY_BUDGET_USD', { infer: true }),
     );
+    const configuredGlobalBudget = this._config.get('AI_GLOBAL_MONTHLY_BUDGET_USD', {
+      infer: true,
+    });
+    const globalBudgetUsd =
+      configuredGlobalBudget === undefined ? null : new Prisma.Decimal(configuredGlobalBudget);
 
     return this._prisma.$transaction(
       async transaction => {
@@ -91,11 +102,21 @@ export class AiJobsService {
         }
 
         const committedUsd = await AiJobsService._committedUsd(transaction, input.userId);
-        if (committedUsd.plus(estimatedCostUsd).greaterThan(monthlyBudgetUsd)) {
+        if (exceedsBudget(committedUsd, estimatedCostUsd, monthlyBudgetUsd)) {
           this._logger.warn(
             `AiJobsService > reserve - presupuesto agotado para el usuario ${input.userId} (comprometido ${committedUsd.toFixed(4)} USD de ${monthlyBudgetUsd.toFixed(2)} USD)`,
           );
           throw new HttpException(budgetExceededMessage, HttpStatus.PAYMENT_REQUIRED);
+        }
+
+        if (globalBudgetUsd) {
+          const globalCommittedUsd = await AiJobsService._committedUsd(transaction, null);
+          if (exceedsBudget(globalCommittedUsd, estimatedCostUsd, globalBudgetUsd)) {
+            this._logger.warn(
+              `AiJobsService > reserve - presupuesto global agotado (comprometido ${globalCommittedUsd.toFixed(4)} USD de ${globalBudgetUsd.toFixed(2)} USD)`,
+            );
+            throw new HttpException(globalBudgetExceededMessage, HttpStatus.PAYMENT_REQUIRED);
+          }
         }
 
         return transaction.aiJob.create({
@@ -239,16 +260,16 @@ export class AiJobsService {
    * Suma el costo comprometido del mes en curso dentro del cliente dado.
    * @private
    * @param {PrismaService | Prisma.TransactionClient} client - Cliente Prisma o transacción.
-   * @param {string} userId - Usuario del que se calcula el gasto.
+   * @param {string | null} userId - Usuario del que se calcula el gasto; null suma el de todos.
    * @returns {Promise<Prisma.Decimal>}
    */
   private static async _committedUsd(
     client: PrismaService | Prisma.TransactionClient,
-    userId: string,
+    userId: string | null,
   ): Promise<Prisma.Decimal> {
     const monthWindow = resolveMonthWindow(new Date());
     const createdInMonth = {
-      userId,
+      ...(userId === null ? {} : { userId }),
       createdAt: { gte: monthWindow.startsAt, lt: monthWindow.endsAt },
     };
 

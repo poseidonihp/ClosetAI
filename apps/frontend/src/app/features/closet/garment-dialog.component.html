@@ -94,8 +94,17 @@
 
           @if (canAddPhotos()) {
             <div class="mt-3 flex flex-wrap gap-2">
-              @if (layout.isMobile()) {
-                <label class="pill" data-test="action-camera-modal">
+              @if (cameraSupported) {
+                <button
+                  type="button"
+                  class="pill"
+                  data-test="action-camera-modal"
+                  (click)="openCamera()"
+                >
+                  Tomar foto
+                </button>
+              } @else if (layout.isMobile()) {
+                <label class="pill" data-test="action-nativecamera-modal">
                   Tomar foto
                   <input
                     type="file"
@@ -407,5 +416,9 @@
     <div class="drop-overlay" data-test="div-drop-modal" aria-hidden="true">
       <div class="drop-hint">Suelta las fotos para añadirlas a esta prenda</div>
     </div>
+  }
+
+  @if (cameraOpen()) {
+    <closet-camera-capture (captured)="addFiles([$event])" (closed)="closeCamera()" />
   }
 </div>

@@ -33,6 +33,7 @@ import {
   type TagGarmentResponse,
   type UpdateGarment,
 } from '@closetai/shared-types';
+import { aiRateLimit } from '../../common/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { GarmentPhotosService } from './garment-photos.service';
@@ -237,6 +238,7 @@ export class GarmentsController {
    */
   @Post(':garmentId/tagging')
   @HttpCode(HttpStatus.OK)
+  @aiRateLimit()
   @Throttle({
     default: { limit: taggingRequestsPerWindow, ttl: seconds(taggingWindowSeconds) },
   })

@@ -22,6 +22,7 @@ import {
   type OutfitFeedbackRequest,
   type OutfitQuery,
 } from '@closetai/shared-types';
+import { aiRateLimit } from '../../common/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OutfitsService } from './outfits.service';
@@ -68,6 +69,7 @@ export class OutfitsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @aiRateLimit()
   @Throttle({
     default: { limit: stylingRequestsPerWindow, ttl: seconds(stylingWindowSeconds) },
   })

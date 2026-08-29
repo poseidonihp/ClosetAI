@@ -14,10 +14,13 @@ out-tsc/
 # TypeScript
 *.tsbuildinfo
 
-# Env — se ignora cualquier .env salvo las plantillas de ejemplo
+# Env — se ignora cualquier .env salvo las plantillas de ejemplo. Cada plantilla
+# se reincluye por su nombre completo: `!.env.example` sólo casa con ese nombre
+# exacto y no con `.env.production.example`.
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Claves y certificados
 *.pem

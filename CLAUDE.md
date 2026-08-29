@@ -16,13 +16,17 @@ responsive (mismo código en escritorio y móvil), instalable como PWA.
 - [examplepng.png](examplepng.png) — la especificación visual de la ficha de look.
   El objetivo es esa ficha, pero armada con prendas reales de la base de datos.
 
-**Estado: Fases 0 a 7 completas.** Hay auth, storage privado, infraestructura de
+**Estado: Fases 0 a 8 completas.** Hay auth, storage privado, infraestructura de
 IA, shell responsive, perfil de estilo, catálogo de tipos de prenda, clóset con
 subida de fotos, el motor de compatibilidad con su ficha de look determinista, el
 etiquetado por visión, el estilista LLM con persistencia de `Outfit`, el bucle de
 aprendizaje sobre el `engineScore`, el análisis de vacíos con su página "Qué
-comprar", el render visual del look y la evaluación de una prenda antes de
-comprarla. **No hay todavía** PWA ni despliegue endurecido (fase 8).
+comprar", el render visual del look, la evaluación de una prenda antes de
+comprarla, la PWA instalable con captura por cámara y el despliegue endurecido.
+
+- [docs/despliegue.md](docs/despliegue.md) — puesta en marcha en el mini PC
+  (Windows + Cloudflare Tunnel), con sus scripts en [deploy/](deploy). Lo que
+  cambia respecto al desarrollo vive ahí y no aquí.
 
 La Fase 7 se verificó de punta a punta: las rutas deterministas —medición,
 veredicto, duplicados, aislamiento por usuario y la transición de compra— y sus
@@ -52,6 +56,7 @@ Desde la raíz salvo que se indique otra cosa. Node 22+ y pnpm 11+.
 | Reset de la base (destructivo)       | `pnpm --filter @closetai/backend db:reset`        |
 | Sembrar el catálogo de prendas       | `pnpm --filter @closetai/backend db:seed`         |
 | Generar par RSA para el login        | `pnpm --filter @closetai/backend gen:rsa`         |
+| Regenerar los iconos de la PWA       | `pnpm --filter @closetai/backend gen:icons`       |
 
 Frontend en `http://localhost:4200`, backend en `http://localhost:3000`. El dev
 server hace proxy de `/api` y `/health` ([proxy.conf.json](apps/frontend/proxy.conf.json)),
@@ -110,11 +115,48 @@ la consulta para saber qué familias se comportan como neutras.
   exige sesión por defecto**; se opta por salir con `@Public()` y se obtiene el
   usuario con `@CurrentUser()`.
 - **Env validado con Zod al arrancar** ([config/env.validation.ts](apps/backend/src/config/env.validation.ts)).
-  Un entorno inválido tumba el proceso con un mensaje legible. Dos trampas: en
-  producción no arranca sin `COOKIE_SECURE=true`, y **toda variable nueva debe
+  Un entorno inválido tumba el proceso con un mensaje legible. Tres trampas: en
+  producción no arranca sin `COOKIE_SECURE=true`; **toda variable nueva debe
   declararse en el esquema aunque se lea de `process.env`** — `ConfigModule` sólo
-  propaga las claves que devuelve el validador (por eso `STORAGE_ROOT` está
-  declarada aunque la lea `LocalDiskDriver`).
+  propaga las claves que devuelve el validador (por eso `STORAGE_ROOT` y
+  `TRUST_PROXY` están declaradas aunque las lean `LocalDiskDriver` y `main.ts`)—;
+  y **una variable escrita y vacía se trata como no declarada**, borrándola
+  también de `process.env` antes de validar: llega como cadena vacía y no como
+  ausencia, así que el `OPENAI_API_KEY=` de la plantilla tumbaba el arranque justo
+  donde se documenta que dejarla vacía está bien. Se borra de `process.env` y no
+  sólo del objeto validado porque **`ConfigService` cae a `process.env` crudo
+  cuando el validador devuelve `undefined`**: sin ese borrado la cadena vacía
+  resucita en cada `config.get(...)` y se cuela como si fuera un valor.
+- **En producción este proceso sirve además la SPA** (`SERVE_SPA=true`,
+  [serve-spa.ts](apps/backend/src/common/serve-spa.ts)). El CSP declara
+  `connect-src 'self'`, así que SPA y API tienen que compartir origen: servirla
+  desde aquí convierte eso en una propiedad de construcción en vez de una que hay
+  que acordarse de configurar en un proxy, y deja **un solo proceso** que
+  registrar como servicio en el mini PC. Las fotos privadas siguen sin ser
+  estáticas: se leen por `GET /api/media`, que exige sesión.
+  El respaldo del router de Angular vive en el **filtro global de excepciones** y
+  no en un `setNotFoundHandler` propio: Nest registra el suyo al arrancar y
+  Fastify sólo admite uno por prefijo, así que registrar otro tumba el arranque.
+  Un 404 bajo `/api`, `/health` o `/docs` sigue siendo 404, y también el de un
+  asset que falta —se exige `Accept: text/html`—: devolver el `index.html` a quien
+  pedía un `.js` escondería el error y el service worker cachearía basura.
+  Los archivos con hash de contenido se sirven `immutable` y todo lo demás
+  `no-cache`; la detección es **positiva** sobre el patrón del hash, así que lo
+  que no se reconozca se revalida, que es el lado seguro del error.
+- **Las cabeceras de seguridad de producción salen de un solo sitio**
+  ([security-headers.ts](apps/backend/src/common/security-headers.ts)) y las manda
+  helmet, que es lo único capaz de declarar `frame-ancestors` —el navegador la
+  ignora dentro de un `<meta>`—. La copia del `<meta>` en
+  [index.html](apps/frontend/src/index.html) queda para el dev server, que sirve el
+  índice sin pasar por el backend: si cambias una directiva, cámbiala en los dos.
+  Fuera de producción el CSP se apaga porque rompe el Swagger UI.
+- **`TRUST_PROXY` y `HOST` son del despliegue, no de la app.** Detrás de
+  Cloudflare Tunnel toda petición llega desde `127.0.0.1`: sin `TRUST_PROXY=true`
+  el límite de peticiones cuenta a todos los usuarios como si fueran uno.
+  `TRUST_PROXY` se lee de `process.env` y no de `ConfigService` porque el
+  adaptador de Fastify se construye antes de que exista la app —está declarada en
+  el esquema igual, como `STORAGE_ROOT`—. `HOST=127.0.0.1` deja el backend fuera
+  de la red local aunque el cortafuegos falle.
 - **Auth**: JWT en cookies httpOnly `closet_access` (path `/`) y `closet_refresh`
   (path `/api/auth`). Los nombres se exportan desde
   [jwt.guard.ts](apps/backend/src/modules/auth/jwt.guard.ts); reutiliza las
@@ -452,7 +494,22 @@ la consulta para saber qué familias se comportan como neutras.
 - **IA** ([modules/ai/](apps/backend/src/modules/ai/)): toda llamada a un proveedor
   pasa por `AiJobsService.reserve()`, que dentro de una transacción `Serializable`
   comprueba el presupuesto mensual y crea el `AiJob` con su `idempotencyKey`
-  (única por usuario). El presupuesto se calcula **sobre `AiJob`** — estimado de
+  (única por usuario).
+  **Hay dos techos y hacen falta los dos**: `AI_MONTHLY_BUDGET_USD` por usuario y
+  `AI_GLOBAL_MONTHLY_BUDGET_USD` para toda la instalación, opcional. El segundo
+  existe porque el primero multiplicado por N usuarios no acota nada y la clave de
+  OpenAI es una sola. Los dos comparan con `exceedsBudget`
+  ([ai-budget.util.ts](apps/backend/src/modules/ai/ai-budget.util.ts)) y no con dos
+  comparaciones sueltas, para que traten el borde igual: gastar exactamente el
+  techo se permite, pasarse no.
+  **Y hay un tope agregado de peticiones**: cada endpoint pagado trae su
+  `@Throttle`, pero son independientes y sumados dejan pasar la tanda de looks, el
+  análisis, el render y el etiquetado a la vez. `@aiRateLimit()`
+  ([rate-limit.decorator.ts](apps/backend/src/common/rate-limit.decorator.ts)) los
+  mete a todos en un limitador con nombre que se apaga con `skipIf` en el resto de
+  las rutas —los limitadores con nombre se evalúan en todas—, así que el gasto por
+  minuto no depende de cuántos endpoints distintos se encadenen. **Un endpoint de
+  IA nuevo tiene que llevar el decorador** o queda fuera de esa cuenta. El presupuesto se calcula **sobre `AiJob`** — estimado de
   lo que está en vuelo más real de lo ya terminado — y no sobre `AiUsageLog`, para
   no contar dos veces la misma llamada; `AiUsageLog` es el detalle de auditoría
   (modelo, tokens, latencia, error) y se expone en `GET /api/ai/usage`. Los
@@ -558,6 +615,34 @@ la consulta para saber qué familias se comportan como neutras.
   rotaciones compitiendo — que se detectarían como reuso y revocarían la familia.
   Volver a una pestaña **comprueba** la ventana, no la renueva: si no, dejar la app
   abierta en segundo plano media hora la mantendría viva.
+- **PWA** ([core/pwa/](apps/frontend/src/app/core/pwa/)): manifest e iconos en
+  `public/`, service worker de `@angular/service-worker` activado sólo en el build
+  de producción. **El service worker no cachea `/api` jamás**:
+  [ngsw-config.json](apps/frontend/ngsw-config.json) no declara ningún `dataGroup`
+  y excluye `/api/**` de las navegaciones — cachear una foto privada o una
+  respuesta de IA en el disco del navegador sería lo contrario de lo que promete
+  el storage privado. Los iconos se generan desde `favicon.svg`, que sigue siendo
+  la única fuente del logotipo, con `gen:icons`.
+  `PwaService` guarda el evento `beforeinstallprompt` —se dispara una sola vez, de
+  ahí que se instancie en el arranque desde [app.ts](apps/frontend/src/app/app.ts)—
+  y vigila las versiones nuevas. **La actualización no se aplica sola**: sale un
+  aviso y el usuario decide, porque recargar en mitad de un formulario a medio
+  escribir perdería lo escrito. `InstallButtonComponent` se esconde solo cuando el
+  navegador no ofrece instalar, así que quien lo monta no necesita su propio `@if`.
+- **Cámara** ([camera.ts](apps/frontend/src/app/features/closet/camera.ts) y
+  [camera-capture.component.ts](apps/frontend/src/app/features/closet/camera-capture.component.ts)):
+  `getUserMedia` propio y no sólo `capture="environment"`. Ese atributo es una
+  **sugerencia** que atienden los navegadores móviles; en Chrome de escritorio abre
+  el explorador de archivos y no hay forma de tomar una foto. El `<input capture>`
+  se conserva como respaldo para cuando no hay contexto seguro, que es lo único que
+  el capturador no puede resolver: sin HTTPS el navegador ni siquiera expone
+  `mediaDevices`, y eso se dice con ese motivo en vez de con un error genérico.
+  La vista previa **se espeja** cuando la cámara apunta al usuario —una webcam sin
+  espejo se siente al revés— pero la foto sale del fotograma crudo: una prenda con
+  texto saldría invertida. Devuelve un `File` WebP que entra por el mismo
+  `addFiles` que una foto del disco, así que la cola de subida no se entera.
+  El stream se corta al cerrar, al cambiar de cámara y al destruir el componente;
+  sin eso el piloto de la cámara se queda encendido.
 - **Nada de `window.alert` / `window.confirm`.** Usa `NotificationService`
   (toasts) y `await ConfirmService.ask(...)`.
 - **Responsive**: [LayoutService](apps/frontend/src/app/core/layout/layout.service.ts)
@@ -768,3 +853,15 @@ proyecto. Ante conflicto, mandan las globales.
   arranque, `pnpm --filter @closetai/backend build` y `node dist/main.js`.
 - El aviso "Module '@closetai/shared-types' … is not ESM" al construir el frontend
   es esperado: el paquete compila a CommonJS porque el backend también lo consume.
+- **No registres un `setNotFoundHandler` propio en Fastify.** Nest registra el
+  suyo durante `app.init()` y Fastify sólo admite uno por prefijo: el segundo
+  tumba el arranque con "Not found handler already set". Lo que haya que decidir
+  sobre un 404 va en el filtro global de excepciones, donde llega la
+  `NotFoundException` que Nest lanza.
+- **`@fastify/static` se registra con `decorateReply: false`.** Swagger UI monta su
+  propia copia y decorar dos veces la respuesta rompe el arranque en desarrollo,
+  que es justo donde Swagger existe.
+- El borde de Cloudflare corta cualquier petición que pase de **100 segundos** y
+  devuelve un 524, aunque el origen siga trabajando. Sólo alcanza al render de
+  imagen con calidad `high`; cuando pasa, la imagen suele haberse guardado igual
+  —y cobrado—, así que hay que recargar la ficha antes de volver a pedirla.

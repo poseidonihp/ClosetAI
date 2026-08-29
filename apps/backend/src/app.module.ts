@@ -15,9 +15,11 @@ import { WardrobeGapsModule } from './modules/wardrobe-gaps/wardrobe-gaps.module
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { validateEnv } from './config/env.validation';
+import { aiThrottlerName, skipUnlessAiEndpoint } from './common/rate-limit.decorator';
 
 const throttleWindowSeconds = 60;
 const requestsPerWindow = 100;
+const aiRequestsPerWindow = 12;
 
 @Module({
   imports: [
@@ -29,6 +31,12 @@ const requestsPerWindow = 100;
       {
         ttl: seconds(throttleWindowSeconds),
         limit: requestsPerWindow,
+      },
+      {
+        name: aiThrottlerName,
+        ttl: seconds(throttleWindowSeconds),
+        limit: aiRequestsPerWindow,
+        skipIf: skipUnlessAiEndpoint,
       },
     ]),
     PrismaModule,

@@ -18,6 +18,7 @@ import {
   type UpdateWardrobeGap,
   type WardrobeGap,
 } from '@closetai/shared-types';
+import { aiRateLimit } from '../../common/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { WardrobeGapsService } from './wardrobe-gaps.service';
@@ -68,6 +69,7 @@ export class WardrobeGapsController {
    */
   @Post('analyze')
   @HttpCode(HttpStatus.CREATED)
+  @aiRateLimit()
   @Throttle({
     default: { limit: analysisRequestsPerWindow, ttl: seconds(analysisWindowSeconds) },
   })

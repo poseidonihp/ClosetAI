@@ -26,6 +26,7 @@ import { ConfirmService } from '../confirm/confirm.service';
 import { LayoutService } from './layout.service';
 import { ThemeService } from '../theme/theme.service';
 import { BrandMarkComponent } from '../../shared/ui/brand-mark.component';
+import { InstallButtonComponent } from '../pwa/install-button.component';
 
 export interface INavItem {
   label: string;
@@ -43,7 +44,14 @@ export interface INavItem {
   selector: 'app-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, LucideAngularModule, BrandMarkComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    LucideAngularModule,
+    BrandMarkComponent,
+    InstallButtonComponent,
+  ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
 })

@@ -25,12 +25,17 @@ sirve de nada. Aquí el catálogo es tu armario:
 - **Bucle de aprendizaje.** Rechazar un look cambia el siguiente, y cada motivo
   de rechazo alimenta la señal que le corresponde: el color penaliza esa pareja
   cromática, "demasiado formal" desplaza la formalidad objetivo, y así.
+- **Instalable, y la cámara funciona también en el escritorio.** La captura usa
+  `getUserMedia` y no el atributo `capture`, que es una sugerencia que sólo
+  atienden los navegadores móviles: en Chrome de escritorio abre el explorador de
+  archivos. El service worker cachea la app pero **nunca `/api`**: ni una foto ni
+  una respuesta de IA acaban en el disco del navegador.
 
 ## Estado
 
-El MVP llega hasta la Fase 4. Las fases 0 a 2 están cerradas y verificadas; la 3
-y la 4 están implementadas y a falta de la verificación manual con una clave real
-de OpenAI. No hay todavía análisis de vacíos (5), render por IA (6) ni PWA (7).
+Las ocho fases del plan están implementadas: perfil y clóset, motor determinista,
+etiquetado por visión, estilista LLM, análisis de vacíos, render del look,
+"¿Me lo compro?" y la PWA con su despliegue.
 
 La tabla de seguimiento vive en [plan.md](plan.md) y es la que manda.
 
@@ -98,6 +103,8 @@ Decisiones que están en el código, no sólo en la intención:
 
 - [CLAUDE.md](CLAUDE.md) — arquitectura, comandos, convenciones y trampas conocidas.
 - [plan.md](plan.md) — plan por fases, modelo de datos y diseño del motor.
+- [docs/despliegue.md](docs/despliegue.md) — puesta en marcha en un mini PC con
+  Windows y Cloudflare Tunnel, con copias de seguridad y restauración probada.
 
 ## Licencia
 

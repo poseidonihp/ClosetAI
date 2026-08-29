@@ -15,6 +15,7 @@ import type {
   RenderOutfitResponse,
   RenderQuote,
 } from '@closetai/shared-types';
+import { aiRateLimit } from '../../../common/rate-limit.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { OutfitRendersService } from './outfit-renders.service';
 
@@ -60,6 +61,7 @@ export class OutfitRendersController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @aiRateLimit()
   @Throttle({
     default: { limit: renderRequestsPerWindow, ttl: seconds(renderWindowSeconds) },
   })

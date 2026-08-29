@@ -4,12 +4,15 @@
     <meta charset="utf-8" />
     <title>closetAI</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <!--
-      `connect-src 'self'` obliga a servir SPA y API desde el mismo origen en
-      producción. `frame-ancestors` no va aquí: el navegador lo ignora en un
-      <meta> y debe enviarlo el servidor como cabecera (nginx, Fase 8).
+      Esta copia del CSP protege al dev server, que sirve el index sin pasar por
+      el backend. En producción manda la cabecera que envía helmet
+      (apps/backend/src/common/security-headers.ts): las dos deben decir lo mismo,
+      y sólo la cabecera puede declarar `frame-ancestors`, que el navegador ignora
+      dentro de un <meta>. `connect-src 'self'` obliga a servir SPA y API desde el
+      mismo origen, que es exactamente lo que hace el backend en el mini PC.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -20,12 +23,21 @@
     font-src 'self' https://fonts.gstatic.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     script-src 'self';
+    worker-src 'self';
+    manifest-src 'self';
     base-uri 'self';
     object-src 'none';
     form-action 'self'
   "
     />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f1e8" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14110d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="closetAI" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
