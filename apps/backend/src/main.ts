@@ -93,7 +93,8 @@ async function bootstrap(): Promise<void> {
 
   let spaIndexHtml: Buffer | null = null;
   if (config.get('SERVE_SPA', { infer: true })) {
-    const spaPath = config.get('SPA_DIST_PATH', { infer: true }) ?? defaultSpaDistPath;
+    // Una ruta vacía en el .env cae al default del monorepo.
+    const spaPath = config.get('SPA_DIST_PATH', { infer: true })?.trim() || defaultSpaDistPath;
     spaIndexHtml = await registerSpa(app, spaPath);
   }
 

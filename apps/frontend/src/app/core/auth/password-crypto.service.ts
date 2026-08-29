@@ -4,6 +4,18 @@ import { ApiClient } from '../http/api.client';
 
 type ForgeModule = typeof import('node-forge');
 type ForgePublicKey = ReturnType<ForgeModule['pki']['publicKeyFromPem']>;
+type ImportedForge = ForgeModule & { default?: ForgeModule };
+
+/**
+ * Desenvuelve node-forge, que es CommonJS. El bundle de producción lo entrega
+ * bajo `default` y el dev server con sus exports arriba, así que sin esto
+ * `pki` llega undefined sólo en producción.
+ * @param {ImportedForge} imported - Módulo tal como lo devuelve el import dinámico.
+ * @returns {ForgeModule}
+ */
+export function unwrapForge(imported: ImportedForge): ForgeModule {
+  return imported.default ?? imported;
+}
 
 /**
  * Cifra el password con la clave pública RSA del backend antes de enviarlo.
@@ -36,7 +48,7 @@ export class PasswordCryptoService {
    * @returns {Promise<ForgeModule>}
    */
   private async _loadForge(): Promise<ForgeModule> {
-    this._forge ??= await import('node-forge');
+    this._forge ??= unwrapForge(await import('node-forge'));
     return this._forge;
   }
 
